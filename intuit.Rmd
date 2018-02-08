@@ -1,0 +1,69 @@
+---
+title: Intuit Quickbooks Upgrade
+output: html_document
+---
+
+* Team-lead GitLab id:
+* Team-lead GitLab username:
+* Group number:
+* Group name:
+* Team member names:
+
+```{r r_setup, include = FALSE}
+## initial settings
+knitr::opts_chunk$set(
+  comment = NA,
+  echo = TRUE,
+  error = TRUE,
+  cache = FALSE,
+  message = FALSE,
+  dpi = 96,
+  warning = FALSE
+)
+
+## width to use when printing tables etc.
+options(
+  width = 250,
+  scipen = 100,
+  max.print = 5000,
+  stringsAsFactors = FALSE
+)
+
+## load radiant packages if needed
+if (!exists("r_environment")) library(radiant)
+```
+
+<style>
+.table {
+  width: auto;
+}
+ul, ol {
+  padding-left: 18px;
+}
+pre, code, pre code {
+  overflow: auto;
+  white-space: pre;
+  word-wrap: normal;
+  background-color: #ffffff;
+}
+</style>
+
+## Setup
+
+Please complete this Rmarkdown document with your group by answering the questions in `intuit-quickbooks.pdf` on Dropbox (week6/readings/). Create an HTML file with all your results and comments and push both the Rmarkdown and HTML file to GitLab when your team is done. All results MUST be reproducible (i.e., the TA and I must be able to recreate the HTML from the Rmarkdown file without changes or errors).
+
+```{r}
+## loading the data. Note that data must be loaded from Dropbox/MGTA455-2018/data
+intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
+
+## Recall that Radiant stores all datasets in a list called r_data 
+## if you are planning to use data transformation commands generated 
+## in Radiant uncomment the lines below and comment out the line above
+# r_data <- list()
+# r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
+```
+
+## Question answers
+
+
+
