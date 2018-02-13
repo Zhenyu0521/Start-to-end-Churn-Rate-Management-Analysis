@@ -40,12 +40,12 @@ test <- filter(intuit75k_wrk,training == 0)
 ```{r}
 ## build logistic regression model
 result <- logistic(
-  dataset = "training", 
-  rvar = "res1", 
+  dataset = "training",
+  rvar = "res1",
   evar = c("zip_bins", "sex", "bizflag",
     "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
+  ),
+  lev = "Yes",
   int = "version1:upgraded"
 )
 summary(result)
@@ -53,7 +53,7 @@ summary(result)
 ## predict response probability lower bound and stored in new variable "log_resp_lb"
 pred <- predict(result, pred_data = "validation", conf_lev = 0.9, se = TRUE)
 store(pred, data = "validation", name = c("resp_log", "resp_log_lb","resp_log_ub"))
- 
+
 ## create deciles for predicted resp_rate
 validation <- mutate(validation, mailto2_log=ifelse(resp_log*0.5 > break_even, TRUE, FALSE), dec_log = xtile(resp_log, 10, rev = TRUE))
 
@@ -88,12 +88,12 @@ cat('Model Accuracy=', acc_log_lb) ## 0.6924
 ```{r}
 ## build logistic regression model
 result <- logistic(
-  dataset = "training", 
-  rvar = "res1", 
+  dataset = "training",
+  rvar = "res1",
   evar = c("zip_bins_new", "sex", "bizflag",
     "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
+  ),
+  lev = "Yes",
   int = "version1:upgraded"
 )
 summary(result)
@@ -138,13 +138,13 @@ accuracy <- data.frame(matrix(0, 52500, 101))
 accuracy[, 1] <- training$id
 for(i in 1:100){
 sample <- sample_n(training, size = 52500, replace = TRUE)
-## fit log model for each sample 
+## fit log model for each sample
  result <- logistic(
-  dataset = sample, 
-  rvar = "res1", 
+  dataset = sample,
+  rvar = "res1",
   evar = c(
     "zip_bins", "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
-  ), 
+  ),
   lev = "Yes"
 )
 accuracy[ ,i] <- predict(result, pred_data = sample)
@@ -251,3 +251,5 @@ cat(res$prn)
 #   store(pred, data = nn_result, name = paste0("predict_nn", i))
 # this `store` line has something wrong with loop, need to fix
 # }
+nn_result <- readRDS("nn_result.rds")
+test$prob_nn_lb <- nn_result$prob_nn_lb
