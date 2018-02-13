@@ -49,6 +49,141 @@ test <- filter(intuit75k_wrk,training == 0)
 # pred <- predict(result, pred_data = test)
 # store(pred, data = test, name = "predict_logit")
 
+#### 4) Logistic Regression
+##### Build up model
+
+```{r}
+## build logistic regression model
+result <- logistic(
+  dataset = "training", 
+  rvar = "res1", 
+  evar = c("zip_bins", "sex", "bizflag",
+    "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  int = "version1:upgraded"
+)
+summary(result)
+
+## predict response probability lower bound and stored in new variable "log_resp_lb"
+pred <- predict(result, pred_data = "validation", conf_lev = 0.9, se = TRUE)
+store(pred, data = "validation", name = c("resp_log", "resp_log_lb","resp_log_ub"))
+ 
+## create deciles for predicted resp_rate
+validation <- mutate(validation, mailto2_log=ifelse(resp_log*0.5 > break_even, TRUE, FALSE), dec_log = xtile(resp_log, 10, rev = TRUE))
+
+## create deciles for predicted resp_rate lower bound
+validation <- mutate(validation, mailto2_log_lb=ifelse(resp_log_lb*0.5 > break_even, TRUE, FALSE), dec_log_lb = xtile(resp_log_lb, 10, rev = TRUE))
+
+```
+
+##### confusion matrix and auc
+
+```{r}
+## check mailto_sq levels and reorder levels if possible
+table(validation$mailto2_log)
+table(validation$mailto2_log_lb)
+validation[["mailto2_log"]] <- factor(validation[["mailto2_log"]], levels = c(TRUE, FALSE))
+validation[["mailto2_log_lb"]] <- factor(validation[["mailto2_log_lb"]], levels = c(TRUE, FALSE))
+
+## create confusion matrix
+conf.mat <- table(validation$res1,validation[["mailto2_log"]])
+conf.mat_lb <- table(validation$res1,validation[["mailto2_log_lb"]])
+
+## calculate accuracy
+acc_log <- (conf.mat[1,1]+conf.mat[2,2])/sum(conf.mat)
+acc_log_lb <- (conf.mat_lb[1,1]+conf.mat_lb[2,2])/sum(conf.mat_lb)
+
+cat('Model Accuracy=', acc_log)  ## 0.6456
+cat('Model Accuracy=', acc_log_lb) ## 0.6924
+```
+
+##### Use new divided zipbins and rebuild up log model
+
+```{r}
+## build logistic regression model
+result <- logistic(
+  dataset = "training", 
+  rvar = "res1", 
+  evar = c("zip_bins_new", "sex", "bizflag",
+    "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  int = "version1:upgraded"
+)
+summary(result)
+
+## predict response probability lower bound and stored in new variable "log_resp_lb"
+pred <- predict(result, pred_data = "validation", conf_lev = 0.9, se = TRUE)
+store(pred, data = "validation", name = c("resp_log_new", "resp_log_lb_new","resp_log_ub_new"))
+
+## create deciles for predicted resp_rate
+validation <- mutate(validation, mailto2_log_new=ifelse(resp_log*0.5 > break_even, TRUE, FALSE), dec_log_new = xtile(resp_log, 10, rev = TRUE))
+
+## create deciles for predicted resp_rate lower bound
+validation <- mutate(validation, mailto2_log_lb_new=ifelse(resp_log_lb*0.5 > break_even, TRUE, FALSE), dec_log_lb_new = xtile(resp_log_lb, 10, rev = TRUE))
+```
+
+##### recheck confusion matrix and auc
+
+```{r}
+## check mailto_sq levels and reorder levels if possible
+table(validation$mailto2_log_new)
+table(validation$mailto2_log_lb_new)
+validation[["mailto2_log_new"]] <- factor(validation[["mailto2_log_new"]], levels = c(TRUE, FALSE))
+validation[["mailto2_log_lb_new"]] <- factor(validation[["mailto2_log_lb_new"]], levels = c(TRUE, FALSE))
+
+## create confusion matrix
+conf.mat_new <- table(validation$res1,validation[["mailto2_log_new"]])
+conf.mat_lb_new <- table(validation$res1,validation[["mailto2_log_lb_new"]])
+
+## calculate accuracy
+acc_log_new <- (conf.mat_new[1,1]+conf.mat_new[2,2])/sum(conf.mat_new)
+acc_log_lb_new <- (conf.mat_lb_new[1,1]+conf.mat_lb_new[2,2])/sum(conf.mat_lb_new)
+
+cat('Model Accuracy=', acc_log_new)  ## still 0.6456
+cat('Model Accuracy=', acc_log_lb_new) ## still 0.6924
+```
+##### check accuracy of prediction result
+
+```{r}
+## generate sample bootstrap
+set.seed(1234)
+accuracy <- data.frame(matrix(0, 52500, 101))
+accuracy[, 1] <- training$id
+for(i in 1:100){
+sample <- sample_n(training, size = 52500, replace = TRUE)
+## fit log model for each sample 
+ result <- logistic(
+  dataset = sample, 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes"
+)
+accuracy[ ,i] <- predict(result, pred_data = sample)
+}
+
+## select 10th percentile of prediction as lower bound
+accuracy$log_lb <- apply(accuracy[ ,-1], 1, quantile(probs = 0.05))
+```
+
+##### Profit and ROME
+
+```{r results = "asis"}
+res_log <- perf_calc("mailto2_log", "Based on targeting,")
+profit_log <- res_log$profit
+ROME_log <- res_log$ROME
+cat(res_log$prn)
+```
+
+##### Lift and gains
+
+```{r}
+lift_log <- lift("dec_log")
+gains_log <- gains("dec_log", lift_log)
+```
 
 
 
