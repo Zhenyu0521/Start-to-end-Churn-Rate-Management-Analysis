@@ -8,7 +8,7 @@ intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/in
 # data pre-checking
 # glimpse(head(intuit75k_wrk,10))
 # map_df(intuit75k_wrk,function(x){any(is.na(x))})
-
+??wd()
 # Break even rate
 mailing_cost <- 1.41
 net_rev <- 60
