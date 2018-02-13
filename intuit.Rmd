@@ -55,15 +55,353 @@ Please complete this Rmarkdown document with your group by answering the questio
 ```{r}
 ## loading the data. Note that data must be loaded from Dropbox/MGTA455-2018/data
 intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
-
+#str(intuit75k_wrk)
 ## Recall that Radiant stores all datasets in a list called r_data 
 ## if you are planning to use data transformation commands generated 
 ## in Radiant uncomment the lines below and comment out the line above
-# r_data <- list()
-# r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
+r_data <- list()
+r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
 ```
 
 ## Question answers
 
+### 1. RFM
+
+#### 1.1 Independent RFM
+```{r}
+# create rec_iq, frec_iq and mon_iq
+intuit75k_wrk <- intuit75k_wrk %>% 
+                  mutate(rec_iq = xtile(last, 5),
+                         freq_iq = xtile(numords, 5, rev = TRUE),
+                         mon_iq = xtile(dollars, 5, rev = TRUE)) 
+
+# check the plot of response rate per rec_iq
+intuit75k_wrk %>% 
+  group_by(rec_iq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = rec_iq, y = res_rate), stat = 'identity', position = 'stack')
+
+# check the plot of response rate per rec_iq: only 4 quintiles
+intuit75k_wrk %>% 
+  group_by(freq_iq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = freq_iq, y = res_rate), stat = 'identity', position = 'stack')
+
+# Why are there only 4 values? Looking at the histogram below we see that the distribution of numords is heavily 
+# skewed (to the right). This makes it difficult to create 5 bins of similar size
+intuit75k_wrk %>% ggplot(aes(x = numords)) + geom_bar(stat = 'count', position = 'stack')
+
+# check the plot of response rate per mon_iq
+intuit75k_wrk %>% 
+  group_by(mon_iq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = mon_iq, y = res_rate), stat = 'identity', position = 'stack')
+
+# create independent rfm index: rfm_iq
+intuit75k_wrk <- mutate(intuit75k_wrk, rfm_iq = paste0(rec_iq, freq_iq, mon_iq))
+
+# view rfm_iq index
+intuit75k_wrk %>% 
+  group_by(rfm_iq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = rfm_iq, y = res_rate), stat = 'identity', position = 'stack')
+
+```
+
+The breakeven is 2.35%.
+```{r}
+breakeven <- 1.41 / 60
+```
+
+```{r}
+# Target mail group using independent quintiles
+intuit75k_wrk <- group_by(intuit75k_wrk, rfm_iq) %>% 
+                  mutate(mailto_iq = mean(res1 == "Yes") / 2 > breakeven & res1 == "No") %>% 
+                  ungroup()
+```
+
+```{r}
+# write function to calculate profit
+perf_calc <- function(sms, intro) {
+  dat <- intuit75k_wrk
+    
+  # no. of wave II mails to be sent to validation base
+  nr_mail <- sum(dat[[sms]] & dat['training'] == 0 & dat['res1'] == "No")
+
+  # estimate response rate based on the overall response rate
+  rep_rate <- mean(dat['res1'] == "Yes") * .5
+
+  # no. of customers responsed in 22.5k base
+  nr_resp <- nr_mail * rep_rate
+  
+  mail_cost <- 1.41 * nr_mail
+
+  profit = 60* nr_resp - mail_cost
+  ROME = profit / mail_cost
+  prn <- paste(intro, "the number of customers Intuit should send is", paste0(round(nr_mail, 1), "."),
+               "The response rate for the selected customers is predicted to be",
+               paste0(round(rep_rate*100, 2),"%"), "or", round(nr_resp), paste0("buyers", "."), "The expected profit is", 
+               paste0("$", round(profit), "."), "The mail cost is estimated to be", paste0(round(mail_cost)), "with a ROME of", 
+               paste0(round(ROME*100, 2), "%", "."))
+
+  results <- data.frame(profit, ROME, prn, rep_rate)
+  return(results)
+}
+```
+
+```{r results = "asis"}
+res <- perf_calc(sms = "mailto_iq", intro = "Based on Independent RFM model")
+profit_iq <- res$profit
+ROME_iq <- res$ROME
+cat(res$prn)
+```
+
+```{r}
+## calculate response rate per group as an illustration
+intuit75k_wrk <- group_by(intuit75k_wrk, rfm_iq) %>% 
+                 mutate(rfm_iq_resp = mean(res1 == "Yes" & training == "1")) %>% 
+                 ungroup()
+```
+
+```{r}
+# overall response rate in training set
+resp.rate <- mean(intuit75k_wrk$res1 == "Yes" & intuit75k_wrk$training == "1") 
+no.resp <- sum(intuit75k_wrk$res1 == "Yes" & intuit75k_wrk$training == "1") 
+```
+
+```{r}
+# function to generate table for lift & gain plots
+get_lift_gain <- function(pred_prob) {
+  # select training set
+  dat <- subset(intuit75k_wrk, training == "1")
+  # create 10 deciles based on pred_prob
+  dec <- xtile(dat[[pred_prob]], 10, rev = TRUE)
+  dat$dec <- dec
+  # create new variables to get lift, Cum_lift, Gains, Cum_gains
+  intuit_lift <- dat %>% group_by(dec) %>% 
+                  dplyr::summarise(n = n(), sum = sum_rm(res1 == "Yes"), mean = mean_rm(res1 == "Yes")) %>% 
+                  mutate(lift = mean / resp.rate, Cum.customer = cumsum(n), 
+                         Cum_cust_prop = Cum.customer / 52500, Cum.buyer = cumsum(sum), 
+                         Cum.resp.rate = Cum.buyer / Cum.customer, Cum_lift = Cum.resp.rate / resp.rate,
+                         Gains = sum /no.resp, Cum_gains = Cum.buyer / no.resp)
+  return(intuit_lift)
+}
+
+# save table
+lift_iq <- get_lift_gain(pred_prob = "rfm_iq_resp")
+```
+
+#### 1.2 Sequential RFM
+
+```{r}
+## calculate sequential frequency quintiles
+intuit75k_wrk <- intuit75k_wrk %>% 
+                  group_by(rec_iq) %>% 
+                  mutate(freq_sq = xtile(numords, 5, rev = TRUE)) %>% 
+                  ungroup() %>% 
+                  group_by(rec_iq, freq_sq) %>% 
+                  mutate(mon_sq = xtile(dollars, 5, rev = TRUE)) %>% 
+                  ungroup() %>% 
+                  mutate(rfm_sq = paste0(rec_iq, freq_sq, mon_sq))
+
+# assess response rate per rec_iq: only 4 quintiles
+intuit75k_wrk %>% 
+  group_by(freq_sq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = freq_sq, y = res_rate), stat = 'identity', position = 'stack')
+
+# assess response rate per mon_sq
+intuit75k_wrk %>% 
+  group_by(mon_sq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = mon_sq, y = res_rate), stat = 'identity', position = 'stack')
+
+# view rfm_sq index
+intuit75k_wrk %>% 
+  group_by(rfm_sq) %>% 
+  summarise(res_rate = mean(res1 == "Yes")) %>% 
+  ggplot() + geom_bar(aes(x = rfm_sq, y = res_rate), stat = 'identity', position = 'stack')
+```
+
+```{r}
+# Target group using sequential quintiles
+intuit75k_wrk <- group_by(intuit75k_wrk, rfm_sq) %>% 
+                  mutate(mailto_sq = mean(res1 == "Yes") / 2 > breakeven & res1 == "No") %>% 
+                  ungroup()
+```
+
+```{r results = "asis"}
+res <- perf_calc(sms = "mailto_sq", intro = "Based on Sequential RFM model")
+profit_sq <- res$profit
+ROME_sq <- res$ROME
+cat(res$prn)
+```
+
+```{r}
+## calculate response rate per group as an illustration
+intuit75k_wrk <- group_by(intuit75k_wrk, rfm_sq) %>% 
+                 mutate(rfm_sq_resp = mean(res1 == "Yes" & training == "1")) %>% 
+                 ungroup()
+
+# save table for lift & gain plot
+lift_sq <- get_lift_gain(pred_prob = "rfm_sq_resp")
+```
+
+### 2. Logistic
+Correlation plot: 
+```{r fig.width = 12.38, fig.height = 12.38, dpi = 96}
+result <- correlation(
+  dataset = "intuit75k_wrk", 
+  vars = c(
+    "zip_bins", "bizflag", "numords", "dollars", "last", "sincepurch", 
+    "version1", "owntaxprod", "upgraded", "res1"
+  ), 
+  data_filter = "training == '1'"
+)
+summary(result)
+plot(result, n = 1000)
+```
+
+Full model:
+```{r fig.width = 7, fig.height = 5.82, dpi = 96}
+result <- logistic(
+  dataset = "intuit75k_wrk", 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  data_filter = "training == '1'"
+)
+summary(result, sum_check = "vif")
+plot(result, plots = "coef", custom = FALSE)
+```
+
+Sincepurch has high p_value and VIF, so let's test the "sincepurch" variable to see if any change:
+```{r fig.width = 7, fig.height = 5.82, dpi = 96}
+result <- logistic(
+  dataset = "intuit75k_wrk", 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  data_filter = "training == '1'"
+)
+summary(result, sum_check = "vif", test_var = "sincepurch")
+plot(result, plots = "coef", custom = FALSE)
+```
+
+Chi-squared is 0.268 with p.value of 0.605, meaning we cannot say model 1 and 2 have much difference.
+Then I predict based on the full model:
+
+```{r}
+result <- logistic(
+  dataset = "intuit75k_wrk", 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  data_filter = "training == '1'"
+)
+
+#summary(result, sum_check = "vif", test_var = "sincepurch")
+intuit_test <- subset(intuit75k_wrk, training == "0") 
+pred <- predict(result, pred_data = "intuit_test")
+print(pred, n = 10)
+store(pred, data = "intuit_test", name = "predict_logit")
+intuit75k_wrk$pred_logit <- r_data$intuit75k_wrk$predict_logit
+
+# create mailto_logit
+intuit75k_wrk <- mutate(intuit75k_wrk, mailto_logit = ifelse(pred_logit > breakeven, TRUE, FALSE))
+
+# confusion matrix
+intuit75k_wrk_train <- subset(intuit75k_wrk, training == "1")
+table(intuit75k_wrk_train$res1, intuit75k_wrk_train$mailto_logit)
+(2225 + 14822) / 52500
+
+```
 
 
+
+
+
+```{r}
+## create new variable(s)
+r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_logit = ifelse(purch_prob_logit > 0.0235 / 2, TRUE, FALSE))
+```
+
+Profit:
+```{r results = "asis"}
+res <- perf_calc(sms = "mailto_logit", intro = "Based on Sequential RFM model")
+profit_sq <- res$profit
+ROME_sq <- res$ROME
+cat(res$prn)
+```
+
+### 3.Naive Bayes
+
+```{r fig.width = 7, fig.height = 5.38, dpi = 96}
+result <- nb(
+  dataset = "intuit75k_wrk", 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  data_filter = "training == '1'"
+)
+summary(result)
+plot(result)
+pred <- predict(result, pred_data = "intuit75k_wrk_test")
+print(pred, n = 10)
+store(pred, data = "intuit75k_wrk_test", name = "purch_prob_nb")
+# write.csv(pred, file = "~/nb_predictions.csv", row.names = FALSE)
+```
+
+Create mailto_nb:
+```{r}
+## create new variable(s)
+r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_nb = ifelse(purch_prob_nb > 0.0235, TRUE, FALSE))
+```
+
+Profit:
+```{r results = "asis"}
+res <- perf_calc(sms = "mailto_logit", intro = "Based on Sequential RFM model")
+profit_sq <- res$profit
+ROME_sq <- res$ROME
+cat(res$prn)
+```
+
+
+### 4. ANN
+
+```{r fig.width = 7, fig.height = 5.38, dpi = 96}
+result <- ann(
+  dataset = "intuit75k_wrk", 
+  rvar = "res1", 
+  evar = c(
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  ), 
+  lev = "Yes", 
+  decay = 0, 
+  seed = 1234, 
+  data_filter = "training == '1'"
+)
+summary(result, prn = TRUE)
+plot(result, plots = "garson", custom = FALSE)
+pred <- predict(result, pred_data = "intuit75k_wrk_test")
+
+print(pred, n = 10)
+store(pred, data = "intuit75k_wrk_test", name = "purch_prob_ann")
+# readr::write_csv(pred, path = "ann_predictions.csv")
+```
+
+```{r}
+subset(intuit75k_wrk, training == "0")
+```
