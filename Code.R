@@ -35,22 +35,7 @@ test <- filter(intuit75k_wrk,training == 0)
 
 #################################### Logistic regression model #######################################
 
-# it's a sample of logistic regreesion
-# result <- logistic(
-#   dataset = training,
-#   rvar = "res1",
-#   evar = c(
-#     "zip_bins", "numords", "dollars", "last", "sincepurch",
-#     "version1", "owntaxprod", "upgraded"
-#   ),
-#   lev = "Yes"
-# )
-# summary(result)
-# pred <- predict(result, pred_data = test)
-# store(pred, data = test, name = "predict_logit")
-
-#### 4) Logistic Regression
-##### Build up model
+##### Full model with interaction
 
 ```{r}
 ## build logistic regression model
