@@ -26,18 +26,32 @@ intuit75k_wrk <- intuit75k_wrk %>%
   mutate(mon_sq = xtile(dollars, 5, rev = T),
          rfm_sq = paste0(rec_sq, freq_sq, mon_sq)) %>%
   group_by(rfm_sq) %>%
-  mutate(mailto_rfm = (mean(res1 == "Yes")/2 > BE_resp_rate) & (res1 == "No")) %>%
+  mutate(purch_prob_rfm = mean(res1 == "Yes"), mailto_rfm = (purch_prob_rfm/2 > BE_resp_rate) & (res1 == "No")) %>%
   ungroup()
 
 # split training and test data set
 training <- filter(intuit75k_wrk,training == 1)
 test <- filter(intuit75k_wrk,training == 0)
 
+# Response Rate for each RFM group
+
+unique_rfm <-training %>%
+  filter(mailto_rfm == TRUE) %>%
+  select(rfm_sq) %>%
+  unique()
+
+
+# Response rate for each rfm group in Testing data
+
+test <- test %>%
+  inner_join(unique_rfm, by = "rfm_sq") %>%
+  filter(res1 == "No")
+
 #################################### Logistic regression model #######################################
 
 ##### Full model with interaction
 
-```{r}
+
 ## build logistic regression model
 result <- logistic(
   dataset = "training",
@@ -60,11 +74,11 @@ validation <- mutate(validation, mailto2_log=ifelse(resp_log*0.5 > break_even, T
 ## create deciles for predicted resp_rate lower bound
 validation <- mutate(validation, mailto2_log_lb=ifelse(resp_log_lb*0.5 > break_even, TRUE, FALSE), dec_log_lb = xtile(resp_log_lb, 10, rev = TRUE))
 
-```
+
 
 ##### confusion matrix and auc
 
-```{r}
+
 ## check mailto_sq levels and reorder levels if possible
 table(validation$mailto2_log)
 table(validation$mailto2_log_lb)
@@ -81,11 +95,11 @@ acc_log_lb <- (conf.mat_lb[1,1]+conf.mat_lb[2,2])/sum(conf.mat_lb)
 
 cat('Model Accuracy=', acc_log)  ## 0.6456
 cat('Model Accuracy=', acc_log_lb) ## 0.6924
-```
+
 
 ##### Use new divided zipbins and rebuild up log model
 
-```{r}
+
 ## build logistic regression model
 result <- logistic(
   dataset = "training",
@@ -107,11 +121,11 @@ validation <- mutate(validation, mailto2_log_new=ifelse(resp_log*0.5 > break_eve
 
 ## create deciles for predicted resp_rate lower bound
 validation <- mutate(validation, mailto2_log_lb_new=ifelse(resp_log_lb*0.5 > break_even, TRUE, FALSE), dec_log_lb_new = xtile(resp_log_lb, 10, rev = TRUE))
-```
+
 
 ##### recheck confusion matrix and auc
 
-```{r}
+
 ## check mailto_sq levels and reorder levels if possible
 table(validation$mailto2_log_new)
 table(validation$mailto2_log_lb_new)
@@ -128,10 +142,10 @@ acc_log_lb_new <- (conf.mat_lb_new[1,1]+conf.mat_lb_new[2,2])/sum(conf.mat_lb_ne
 
 cat('Model Accuracy=', acc_log_new)  ## still 0.6456
 cat('Model Accuracy=', acc_log_lb_new) ## still 0.6924
-```
+
 ##### check accuracy of prediction result
 
-```{r}
+
 ## generate sample bootstrap
 set.seed(1234)
 accuracy <- data.frame(matrix(0, 52500, 101))
@@ -152,23 +166,22 @@ accuracy[ ,i] <- predict(result, pred_data = sample)
 
 ## select 10th percentile of prediction as lower bound
 accuracy$log_lb <- apply(accuracy[ ,-1], 1, quantile(probs = 0.05))
-```
+
 
 ##### Profit and ROME
 
-```{r results = "asis"}
+
 res_log <- perf_calc("mailto2_log", "Based on targeting,")
 profit_log <- res_log$profit
 ROME_log <- res_log$ROME
 cat(res_log$prn)
-```
+
 
 ##### Lift and gains
 
-```{r}
 lift_log <- lift("dec_log")
 gains_log <- gains("dec_log", lift_log)
-```
+
 
 
 
