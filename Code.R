@@ -14,6 +14,8 @@ intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/in
 # glimpse(head(intuit75k_wrk,10))
 # map_df(intuit75k_wrk,function(x){any(is.na(x))})
 
+intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
+
 # Break even rate
 mailing_cost <- 1.41
 net_rev <- 60
@@ -77,6 +79,77 @@ result <- nb(
 summary(result)
 pred <- predict(result, pred_data = "test")
 store(pred, data = "test", name = "prob_nb")
+
+# full - bizflag
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "sex", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nobiz")
+
+# full - biz - sex
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nobiz_sex")
+
+# Full model - sex
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "bizflag", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nosex")
+
+# Evaluation
+result <- evalbin(
+  dataset = "test",
+  pred = c(
+    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_sex",
+    "prob_nb_nosex"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+summary(result)
+plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) %>%
+  gridExtra::grid.arrange(grobs = ., top = "Model evaluation", ncol = 2) # no much difference
+
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_sex",
+    "prob_nb_nosex"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+summary(result)
+# prob_nb_nosex is slightly better on profit, so we choose prob_nb_nosex as the best estimator among naive bayes
 
 ################################ Neural network with bootsrap ####################################
 
