@@ -233,6 +233,47 @@ result <- confusion(
 
 summary(result)
 
+################################ Logistic regression with bootsrap ####################################
+
+#----------------------------------------- Run on server------------------------------------------
+# library(radiant)
+# intuit75k_wrk <- readr::read_rds("intuit75k.rds")
+# intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
+# mailing_cost <- 1.41
+# net_rev <- 60
+# BE_resp_rate <- mailing_cost / net_rev
+# training <- filter(intuit75k_wrk,training == 1)
+# test <- filter(intuit75k_wrk,training == 0)
+#
+# #################################################################################################
+# r_data <- list()
+# r_data[["intuit75k_wrk"]] <- intuit75k_wrk
+# r_data[["test"]] <- test
+# r_data[["training"]] <- training
+#
+# logit_result <- data.frame(matrix(NA, nrow = 22500, ncol = 101))
+# logit_result[[1]] <- test[["id"]]
+# for (i in 1:100){
+#   dat <- sample_n(training,52500,replace = TRUE)
+#   result <- logistic(
+#     dataset = dat,
+#     rvar = "res1",
+#     evar = c(
+#       "zip_bins", "sex","numords", "dollars", "last", "sincepurch",
+#       "version1", "owntaxprod", "upgraded"
+#     ),
+#     lev = "Yes",
+#     int = "version1:upgraded"
+#   )
+#   logit_result[[i+1]] <- predict(result, pred_data = test)$Prediction
+# }
+#
+# logit_result$prob_nbiz_int_bt <- apply(logit_result[,2:101],1,quantile,probs = 0.05)
+# logit_result <- logit_result %>% select(id = X1, prob_nbiz_int_bt)
+logit_result <- readRDS("logit_result.rds")
+r_data[['test']]$prob_logit_nbf_int_bt_lb <- logit_result$prob_nbiz_int_bt
+
+
 # changing bin to zip_bins_50 will not affect result, thus the optimal is full model removing
 # bizflag adding interaction btw version 1 and upgraded.
 
