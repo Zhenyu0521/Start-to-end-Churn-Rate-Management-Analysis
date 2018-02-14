@@ -3,11 +3,11 @@ title: Intuit Quickbooks Upgrade
 output: html_document
 ---
 
-* Team-lead GitLab id:
-* Team-lead GitLab username:
-* Group number:
-* Group name:
-* Team member names:
+* Team-lead GitLab id: 
+* Team-lead GitLab username: 
+* Group number: 4
+* Group name: 
+* Team member names: Lei Duan, Nehal Jain, Qingqing Long, Xiaochen Li
 
 ```{r r_setup, include = FALSE}
 ## initial settings
@@ -64,6 +64,14 @@ r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-
 ```
 
 ## Question answers
+
+
+
+
+
+
+
+
 
 ### 1. RFM
 

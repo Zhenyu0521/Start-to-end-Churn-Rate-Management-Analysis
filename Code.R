@@ -1,19 +1,16 @@
-######################################## Setting up ################################################
 # install.packages(c("glmnet","purrr","ROCR"))
 if (!exists("r_environment")) library(radiant)
 library(purrr)
 library(glmnet)
 library(ROCR)
 
-## Recall that Radiant stores all datasets in a list called r_data, if you are planning to use data
-## transformation commands generated in Radiant uncomment the lines below and comment out the line above
 intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
 
-# add zipbins to 50 bins
+## newZipbins
 intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
-intuit75k_wrk$zip_bins_50 <- as.factor(xtile(as.numeric(intuit75k_wrk$zip),50))
+intuit75k_wrk$zip_bins_50 <- as.factor(xtile(as.numeric(intuit75k_wrk$zip), 50))
 
-# Break even rate
+## breakeven
 mailing_cost <- 1.41
 net_rev <- 60
 BE_resp_rate <- mailing_cost / net_rev
@@ -87,8 +84,8 @@ result <- logistic(
   lev = "Yes"
 )
 summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nbf")
+pred <- predict(result, pred_data = "test", conf_lev = .9, se = TRUE)
+store(pred, data = "test", name = c("prob_logit_nbf", "prob_logit_nbf_lb"))
 
 ## Model without sincepurch
 result <- logistic(
@@ -172,6 +169,8 @@ result <- confusion(
   train = "All"
 )
 eval_logit <- summary(result)
+# prob_logit_nbf is the best regarding profit and AUC
+
 
 # 3. Final model without bizflag adding interaction
 result <- logistic(
@@ -184,15 +183,14 @@ result <- logistic(
   int = "version1:upgraded"
 )
 summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nbf_in")
+pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
+store(pred, data = "test", name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb"))
 
+# compare four models
 result <- confusion(
   dataset = "test",
   pred = c(
-    "prob_logit", "prob_logit_lb",
-    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp",
-    "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp", "prob_logit_nbf_in"
+    "prob_logit_nbf", "prob_logit_nbf_lb", "prob_logit_nbf_in", "prob_logit_nbf_in_lb"
   ),
   rvar = "res1",
   lev = "Yes",
@@ -203,6 +201,40 @@ result <- confusion(
 
 summary(result)
 
+# adding interaction terms does not make much difference, will choose model w/o bizflag as optimal model
+
+
+# change zipbins to zipbins_50
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins_50", "sex",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes",
+  int = "version1:upgraded"
+)
+summary(result)
+pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
+store(pred, data = "test", name = "prob_logit_nbf_in_newbin")
+
+# compare four models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_logit_nbf_in", "prob_logit_nbf_in_newbin"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+
+summary(result)
+
+# changing bin to zip_bins_50 will not affect result, thus the optimal is full model removing
+# bizflag adding interaction btw version 1 and upgraded.
 
 #################################### Naive bayes model #######################################
 # 1. Build Naive bayes model
@@ -276,9 +308,10 @@ result <- confusion(
 eval_nb <- summary(result)
 
 # prob_nb_nobiz is slightly better on profit, so we choose prob_nb_nobiz as the best estimator
-# among naive bayes. Also we want to add a zip_bins_50
+# among naive bayes.
 
-# full - bizflag -
+#Also we want to test if zip_bins_50 is better than zipbins
+# full - bizflag - change zipbins to zipbins_50
 result <- nb(
   dataset = "training",
   rvar = "res1",
@@ -292,8 +325,21 @@ pred <- predict(result, pred_data = "test")
 store(pred, data = "test", name = "prob_nb_nobiz_zip50")
 
 
+# chechk result
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_nb_nobiz", "prob_nb_nobiz_zip50"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+eval_nb <- summary(result)
 
-
+# replacing zipbin with zipbins_50 is better. Final model is no bizflag adding zipbins_50
 
 ################################ Neural network with bootsrap ####################################
 
@@ -361,12 +407,11 @@ nn_result <- readRDS("nn_result.rds")
 r_data[['test']]$prob_nn_lb <- nn_result$prob_nn_lb
 
 ########################################## Evaluation ############################################
-
 # Evaluation
 result <- evalbin(
   dataset = "test",
   pred = c(
-    "prob_rfm", "prob_logit", "prob_logit_lb",
+    "prob_rfm", "prob_logit_nbf_in",
     "prob_nb_nobiz_zip50", "prob_nn_lb"
   ),
   rvar = "res1",
@@ -383,7 +428,7 @@ plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) %>%
 result <- confusion(
   dataset = "test",
   pred = c(
-    "prob_rfm", "prob_logit", "prob_logit_lb",
+    "prob_rfm", "prob_logit_nbf_in",
     "prob_nb_nobiz_zip50", "prob_nn_lb"
   ),
   rvar = "res1",
@@ -395,7 +440,7 @@ result <- confusion(
 summary(result)
 plot(result)
 
-##################################### prediction for wave 2########################################
+##################################### prediction for wave 2 ########################################
 ## creating mailto columns
 
 r_data[["test"]] <- r_data[["test"]] %>%
@@ -430,8 +475,6 @@ perf_calc <- function(mailto, intro){
 perf_cale(mailto = "mailto_wave2", intro = "With Neural network model")
 
 # scale to 801,821 businesses with 38,487 already responded
-
 profit_scaled <-
   (profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
-
 
