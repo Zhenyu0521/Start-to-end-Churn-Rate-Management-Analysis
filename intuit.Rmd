@@ -326,10 +326,6 @@ table(intuit75k_wrk_train$res1, intuit75k_wrk_train$mailto_logit)
 
 ```
 
-
-
-
-
 ```{r}
 ## create new variable(s)
 r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_logit = ifelse(purch_prob_logit > 0.0235 / 2, TRUE, FALSE))
@@ -357,21 +353,23 @@ result <- nb(
 )
 summary(result)
 plot(result)
-pred <- predict(result, pred_data = "intuit75k_wrk_test")
+pred <- predict(result, pred_data = "intuit75k_wrk")
 print(pred, n = 10)
-store(pred, data = "intuit75k_wrk_test", name = "purch_prob_nb")
+store(pred, data = "intuit75k_wrk", name = "purch_prob_nb")
 # write.csv(pred, file = "~/nb_predictions.csv", row.names = FALSE)
 ```
 
 Create mailto_nb:
 ```{r}
+intuit75k_wrk$pred_nb <- r_data$intuit75k_wrk$purch_prob_nb
+
 ## create new variable(s)
 r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_nb = ifelse(purch_prob_nb > 0.0235, TRUE, FALSE))
 ```
 
 Profit:
 ```{r results = "asis"}
-res <- perf_calc(sms = "mailto_logit", intro = "Based on Sequential RFM model")
+res <- perf_calc(sms = "mailto_nb", intro = "Based on Sequential RFM model")
 profit_sq <- res$profit
 ROME_sq <- res$ROME
 cat(res$prn)
@@ -400,8 +398,4 @@ pred <- predict(result, pred_data = "intuit75k_wrk_test")
 print(pred, n = 10)
 store(pred, data = "intuit75k_wrk_test", name = "purch_prob_ann")
 # readr::write_csv(pred, path = "ann_predictions.csv")
-```
-
-```{r}
-subset(intuit75k_wrk, training == "0")
 ```
