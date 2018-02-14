@@ -24,7 +24,7 @@ BE_resp_rate <- mailing_cost / net_rev
 ###################################### Sequential RFM model #########################################
 # create sequential RFM index
 intuit75k_wrk <- intuit75k_wrk %>%
-  mutate(rec_sq = xtile(last,5)) %>%  # using time sice last oder from Intuit Direct as recency
+  mutate(rec_sq = xtile(last,5)) %>%  # using time since last oder from Intuit Direct as recency
   group_by(rec_sq) %>%
   mutate(freq_sq = xtile(numords,5, rev = T)) %>%
   group_by(rec_sq,freq_sq) %>%
@@ -175,6 +175,37 @@ result <- confusion(
 )
 eval_logit <- summary(result)
 
+## Final model without bizflag adding interaction
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "sex",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes",
+  int = "version1:upgraded"
+)
+summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nbf_in")
+
+## Recheck AUC, profit, ROME checking for different models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_logit", "prob_logit_lb",
+    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp",
+    "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp", "prob_logit_nbf_in"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+eval_logit <- summary(result)
+
+## Model without bizflag adding interaction is still the optimal one having the highest profit
 
 #################################### Naive bayes model #######################################
 # 1. Build Naive bayes model
