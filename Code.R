@@ -52,6 +52,7 @@ r_data[['test']] <- filter(intuit75k_wrk,training == 0)
 #################################### Logistic regression model #######################################
 
 # 1. Build logistic regression model
+
 ## Full model
 result <- logistic(
   dataset = "training",
@@ -95,7 +96,7 @@ store(pred, data = "test", name = "prob_logit_nbf")
 result <- logistic(
   dataset = "training",
   rvar = "res1",
-  evar = c("zip_bins", "sex", "bisflag",
+  evar = c("zip_bins", "sex", "bizflag",
            "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
   ),
   lev = "Yes"
@@ -158,29 +159,13 @@ pred <- predict(result, pred_data = "test")
 store(pred, data = "test", name = "prob_logit_nsbfsp")
 
 
-# 2. Evaluation of lift, gains, profit and ROME
-result <- evalbin(
-  dataset = "test",
-  pred = c(
-    "prob_logit", "prob_logit_lb",
-    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp", "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp"
-  ),
-  rvar = "res1",
-  lev = "Yes",
-  cost = 1.41,
-  margin = 60,
-  train = "All"
-)
-summary(result)
-plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) %>%
-  gridExtra::grid.arrange(grobs = ., top = "Model evaluation", ncol = 2)
-
-# 3. Confusion matrix for different models
+# 2. AUC, profit, ROME checking for different models
 result <- confusion(
   dataset = "test",
   pred = c(
     "prob_logit", "prob_logit_lb",
-    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp", "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp"
+    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp",
+    "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp"
   ),
   rvar = "res1",
   lev = "Yes",
@@ -188,59 +173,12 @@ result <- confusion(
   margin = 60,
   train = "All"
 )
-summary(result)
-plot(result)
-
-
-## creating mailto columns
-
-r_data[["test"]] <- r_data[["test"]] %>%
-  mutate(mailto_logit = factor(ifelse(prob_logit > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_lb = factor(ifelse(prob_logit_lb > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_ns = factor(ifelse(prob_logit_ns > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nbf = factor(ifelse(prob_logit_nbf > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nsp = factor(ifelse(prob_logit_nsp > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nsbf = factor(ifelse(prob_logit_nsbf > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nssp = factor(ifelse(prob_logit_nssp > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nbfsp = factor(ifelse(prob_logit_nbfsp > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_nsbfsp = factor(ifelse(prob_logit_nsbfsp > BE_resp_rate, T, F),levels = c(T, F))
-  )
-
-
-## confusion matrix and auc
-test <- r_data[["test"]]
-### create confusion matrix using res1 and mailto
-conf.mat_logit <- table(test$res1, test$mailto_logit)
-conf.mat_logit_lb <- table(test$res1, test$mailto_logit_lb)
-conf.mat_logit_ns <- table(test$res1, test$mailto_logit_ns)
-conf.mat_logit_nbf <- table(test$res1, test$mailto_logit_nbf)
-conf.mat_logit_nsp <- table(test$res1, test$mailto_logit_nsp)
-conf.mat_logit_nsbf <- table(test$res1, test$mailto_logit_nsbf)
-conf.mat_logit_nssp <- table(test$res1, test$mailto_logit_nssp)
-conf.mat_logit_nbfsp <- table(test$res1, test$mailto_logit_nbfsp)
-conf.mat_logit_nsbfsp <- table(test$res1, test$mailto_logit_nsbfsp)
-
-### calculate accuracy
-acc_logit <- (conf.mat_logit[1,1] + conf.mat_logit[2,2]) / sum(conf.mat_logit)
-acc_logit_lb <- (conf.mat_logit_lb[1,1] + conf.mat_logit_lb[2,2]) / sum(conf.mat_logit_lb)
-acc_logit_ns <- (conf.mat_logit_ns[1,1] + conf.mat_logit_ns[2,2]) / sum(conf.mat_logit_ns)
-acc_logit_nbf <- (conf.mat_logit_nbf[1,1] + conf.mat_logit_nbf[2,2]) / sum(conf.mat_logit_nbf)
-acc_logit_nsp <- (conf.mat_logit_nsp[1,1] + conf.mat_logit_nsp[2,2]) / sum(conf.mat_logit_nsp)
-acc_logit_nbf <- (conf.mat_logit_nbf[1,1] + conf.mat_logit_nbf[2,2]) / sum(conf.mat_logit_nbf)
-acc_logit_nsbf <- (conf.mat_logit_nsbf[1,1] + conf.mat_logit_nsbf[2,2]) / sum(conf.mat_logit_nsbf)
-acc_logit_nssp <- (conf.mat_logit_nssp[1,1] + conf.mat_logit_nssp[2,2]) / sum(conf.mat_logit_nssp)
-acc_logit_nbfsp <- (conf.mat_logit_nbfsp[1,1] + conf.mat_logit_nbfsp[2,2]) / sum(conf.mat_logit_nbfsp)
-acc_logit_nsbfsp <- (conf.mat_logit_nsbfsp[1,1] + conf.mat_logit_nsbfsp[2,2]) / sum(conf.mat_logit_nsbfsp)
-
-### omparison with radiant
-data.frame(
-  hand_clac = c(acc_logit,acc_logit_lb,acc_logit_ns,acc_logit_nbf,acc_logit_nsp, acc_logit_nsbf, acc_logit_nssp, acc_logit_nbfsp, acc_logit_nsbfsp),
-  radiant = result$dat$accuracy
-)
-
+eval_logit <- summary(result)
 
 
 #################################### Naive bayes model #######################################
+# 1. Build Naive bayes model
+
 # Full model
 result <- nb(
   dataset = "training",
@@ -278,7 +216,7 @@ result <- nb(
 )
 summary(result)
 pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb_nobiz_sex")
+store(pred, data = "test", name = "prob_nb_nobiz_nosex")
 
 # Full model - sex
 result <- nb(
@@ -293,27 +231,12 @@ summary(result)
 pred <- predict(result, pred_data = "test")
 store(pred, data = "test", name = "prob_nb_nosex")
 
-# Evaluation
-result <- evalbin(
-  dataset = "test",
-  pred = c(
-    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_sex",
-    "prob_nb_nosex"
-  ),
-  rvar = "res1",
-  lev = "Yes",
-  cost = 1.41,
-  margin = 60,
-  train = "All"
-)
-summary(result)
-plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) %>%
-  gridExtra::grid.arrange(grobs = ., top = "Model evaluation", ncol = 2) # no much difference
+# 2. AUC, profit, ROME checking for different models
 
 result <- confusion(
   dataset = "test",
   pred = c(
-    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_sex",
+    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_nosex",
     "prob_nb_nosex"
   ),
   rvar = "res1",
@@ -322,24 +245,61 @@ result <- confusion(
   margin = 60,
   train = "All"
 )
-summary(result)
-# prob_nb_nosex is slightly better on profit, so we choose prob_nb_nosex as the best estimator among naive bayes
+eval_nb <- summary(result)
+
+# prob_nb_nobiz is slightly better on profit, so we choose prob_nb_nobiz as the best estimator
+# among naive bayes
 
 ################################ Neural network with bootsrap ####################################
 
 #----------------------------------------- Run on server------------------------------------------
+# # Choose the best size & decay combination based on AUC, profit & ROME
+# for (i in 1:5){
+#   size = i
+#   for (j in 1:6) {
+#     decay = j/2
+#     result <- nn(
+#       dataset = "test",
+#       rvar = "res1",
+#       evar = c(
+#         "zip_bins","sex","bizflag", "numords", "dollars", "last", "sincepurch",
+#         "version1", "owntaxprod", "upgraded"),
+#       decay = decay,
+#       size = size,
+#       lev = "Yes",
+#       seed = 1234)
+#     pred <- predict(result, pred_data = "test")
+#     store(pred, data = "test", name = paste("nn",i,j/2,sep="_"))
+#   }
+# }
+#
+# result <- confusion(
+#   dataset = "test",
+#   pred = colnames(r_data[["test"]])[15:43],
+#   rvar = "res1",
+#   lev = "Yes",
+#   cost = 1.41,
+#   margin = 60,
+#   train = "All"
+# )
+# conf <- summary(result) %>% select(Predictor,profit,ROME, AUC)
+# # size = 5 & decay = 0.5 is the best choise
+#
+# # run bootstrap based on above result
 # set.seed(1234)
 # nn_result <- data.frame(matrix(NA, nrow = 22500, ncol = 101))
 # nn_result[[1]] <- test[["id"]]
 # for (i in 1:100){
 #   dat <- sample_n(training,52500,replace = TRUE)
 #   result <- nn(
-#     dataset = test,
+#     dataset = "test",
 #     rvar = "res1",
 #     evar = c(
-#       "zip_bins", "numords", "dollars", "last", "sincepurch",
+#       "zip_bins", "sex","bizflag","numords", "dollars", "last", "sincepurch",
 #       "version1", "owntaxprod", "upgraded"
 #     ),
+#     size = 5,
+#     decay = 0.5,
 #     lev = "Yes",
 #     seed = 1234
 #   )
@@ -350,10 +310,12 @@ summary(result)
 # nn_result <- nn_result %>% select(id = X1, prob_nn_lb)
 #-------------------------------------------------------------------------------------------------
 
+eval_nn.rds <- readRDS("eval_nn.rds")
 nn_result <- readRDS("nn_result.rds")
 r_data[['test']]$prob_nn_lb <- nn_result$prob_nn_lb
 
 ########################################## Evaluation ############################################
+
 # Evaluation
 result <- evalbin(
   dataset = "test",
@@ -390,33 +352,12 @@ plot(result)
 
 # ## creating mailto columns
 
-r_data[["test"]] <- r_data[["test"]] %>%
-  mutate(mailto_rfm = factor(ifelse(prob_rfm > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit = factor(ifelse(prob_logit > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_logit_lb = factor(ifelse(prob_logit_lb > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_nb = factor(ifelse(prob_nb > BE_resp_rate, T, F),levels = c(T, F)),
-         mailto_nn_lb = factor(ifelse(prob_nn_lb > BE_resp_rate, T, F),levels = c(T, F))
-  )
+# r_data[["test"]] <- r_data[["test"]] %>%
+#   mutate(mailto_rfm = factor(ifelse(prob_rfm > BE_resp_rate, T, F),levels = c(T, F)),
+#          mailto_logit = factor(ifelse(prob_logit > BE_resp_rate, T, F),levels = c(T, F)),
+#          mailto_logit_lb = factor(ifelse(prob_logit_lb > BE_resp_rate, T, F),levels = c(T, F)),
+#          mailto_nb = factor(ifelse(prob_nb > BE_resp_rate, T, F),levels = c(T, F)),
+#          mailto_nn_lb = factor(ifelse(prob_nn_lb > BE_resp_rate, T, F),levels = c(T, F))
+#   )
 
 
-##### confusion matrix and auc
-test <- r_data[["test"]]
-# create confusion matrix using res1 and mailto
-conf.mat_rfm <- table(test$res1, test$mailto_rfm)
-conf.mat_logit <- table(test$res1, test$mailto_logit)
-conf.mat_logit_lb <- table(test$res1, test$mailto_logit_lb)
-conf.mat_nb <- table(test$res1, test$mailto_nb)
-conf.mat_nn_lb <- table(test$res1, test$mailto_nn_lb)
-
-# calculate accuracy
-acc_rfm <- (conf.mat_rfm[1,1] + conf.mat_rfm[2,2]) / sum(conf.mat_rfm)
-acc_logit <- (conf.mat_logit[1,1] + conf.mat_logit[2,2]) / sum(conf.mat_logit)
-acc_logit_lb <- (conf.mat_logit_lb[1,1] + conf.mat_logit_lb[2,2]) / sum(conf.mat_logit_lb)
-acc_nb <- (conf.mat_nb[1,1] + conf.mat_nb[2,2]) / sum(conf.mat_nb)
-acc_nn_lb <- (conf.mat_nn_lb[1,1] + conf.mat_nn_lb[2,2]) / sum(conf.mat_nn_lb)
-
-#comparison with radiant
-data.frame(
-hand_clac = c(acc_rfm,acc_logit,acc_logit_lb,acc_nb,acc_nn_lb),
-radiant = result$dat$accuracy
-)
