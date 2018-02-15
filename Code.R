@@ -1,8 +1,5 @@
 # install.packages(c("glmnet","purrr","ROCR"))
 if (!exists("r_environment")) library(radiant)
-library(purrr)
-library(glmnet)
-library(ROCR)
 
 intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
 
@@ -184,7 +181,7 @@ result <- logistic(
 )
 summary(result)
 pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
-store(pred, data = "test", name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb"))
+store(pred, data = "test", name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb","prob_logit_nbf_in_ub"))
 
 # compare four models
 result <- confusion(
@@ -445,15 +442,17 @@ eval_nb <- summary(result)
 
 eval_nn.rds <- readRDS("eval_nn.rds")
 nn_result <- readRDS("nn_result.rds")
+nn_result_newzip <- readRDS("nn_result_newzip.rds")
 r_data[['test']]$prob_nn_lb <- nn_result$prob_nn_lb
-
+r_data[['test']]$prob_nn_newzip_lb <- nn_result_newzip$prob_nn_newzip_lb
+r_data[['test']]$prob_nn_newzip_mean <- nn_result_newzip$prob_nn_newzip_mean
 ########################################## Evaluation ############################################
 # Evaluation
 result <- evalbin(
   dataset = "test",
   pred = c(
-    "prob_rfm", "prob_logit_nbf_in",
-    "prob_nb_nobiz_zip50", "prob_nn_lb"
+    "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_int_bt_lb",
+    "prob_nb_nobiz_zip50","prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
   ),
   rvar = "res1",
   lev = "Yes",
@@ -469,8 +468,8 @@ plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) %>%
 result <- confusion(
   dataset = "test",
   pred = c(
-    "prob_rfm", "prob_logit_nbf_in",
-    "prob_nb_nobiz_zip50", "prob_nn_lb"
+    "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_in_ub","prob_logit_nbf_int_bt_lb",
+    "prob_nb_nobiz_zip50", "prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
   ),
   rvar = "res1",
   lev = "Yes",
@@ -480,13 +479,12 @@ result <- confusion(
 )
 summary(result)
 plot(result)
-
 ##################################### prediction for wave 2 ########################################
 ## creating mailto columns
 
 r_data[["test"]] <- r_data[["test"]] %>%
 mutate(mailto_wave2 = factor(
-                        ifelse( ( (prob_nn_lb/2) > BE_resp_rate ) & res1 == "No", T, F),
+                        ifelse( ( (prob_logit_nbf_in/2) > BE_resp_rate ) & res1 == "No", T, F),
                         levels = c(T, F))
 )
 
@@ -513,9 +511,9 @@ perf_calc <- function(mailto, intro){
   return(data.frame(perc_mailto, nr_mailto, rep_rate, nr_resp, mailto_cost, profit, ROME, prn))
 }
 
-perf_cale(mailto = "mailto_wave2", intro = "With Neural network model")
+final_profit <- perf_calc(mailto = "mailto_wave2", intro = "With Neural network model")
 
 # scale to 801,821 businesses with 38,487 already responded
 profit_scaled <-
-  (profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
+  (final_profit$profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
 
