@@ -169,9 +169,10 @@ $$ FinalProfit = 35007.03 / 21397 * (801821 - 38487) = 1248869$$
 
 #### Part VI. Conclusion & Learnings:
 From this study we can draw the conclusion that:  
-* the high margin of selling quickbooks provides us with the opportunity to target more high-potential customers with less efforts.(i.e, we can be more aggressive given certain condition to pursue more profits)   
-* Besides, lower bound predictive approach in both logistic and neural network is too conservative to achieve the highest profit.   
-* Sometimes, Neural network may perform quite well, but could be difficult to explain, either. So one of the way to use it is to take it as a benchmark and then use logistic regression, which is easier to explain and making more business meanings.  
+* the high margin of selling Quickbooks provides us with the opportunity to target more high-potential customers with less efforts. (i.e, we can be more aggressive given certain condition to pursue more profits).   
+* Besides, lower bound predictive approach in both logistic and neural network is too conservative to achieve the highest profit.    
+* Sometimes, Neural network may perform quite well, but could be difficult to explain, either. So, one of the way to use it is to take it as a benchmark and then use logistic regression, which is easier to explain and making more business meanings.    
+* There is no significant difference in profit between logistic lower bound and logistic bootstrap quantile of 0.05, since bootstrap with quantile of 0.05 seems to work like a manual way to extract the lower bound.  
 
 
 
