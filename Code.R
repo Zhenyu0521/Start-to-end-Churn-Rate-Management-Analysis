@@ -479,41 +479,78 @@ result <- confusion(
 )
 summary(result)
 plot(result)
-##################################### prediction for wave 2 ########################################
-## creating mailto columns
 
+# profit plot
+compare <- result$dat
+visualize(
+  dataset = "compare",
+  xvar = "pred",
+  yvar = "profit",
+  type = "bar",
+  custom = TRUE
+) +
+  labs(title = "Campaign profit", x = "") +
+  geom_text(aes(label = formatnr(profit, dec = 0)), vjust = 2)
+
+# ROME plot
+visualize(
+  dataset = "compare",
+  xvar = "pred",
+  yvar = "ROME",
+  type = "bar",
+  custom = TRUE
+) +
+  labs(title = "Campaign ROME", x = "") +
+  geom_text(aes(label = formatnr(ROME, dec = 2)), vjust = 2)
+
+## THE BEST MODEL IS LOGIT_NBF_IN
+
+##################################### prediction for wave 2 ########################################
+## Creating mailto columns
 r_data[["test"]] <- r_data[["test"]] %>%
-mutate(mailto_wave2 = factor(
-                        ifelse( ( (prob_logit_nbf_in/2) > BE_resp_rate ) & res1 == "No", T, F),
+                    mutate(mailto_logit = factor(
+                      ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate), T, F),
+                      levels = c(T, F))
+  )
+
+# Compute profit based on confusion matrix
+table(r_data$test$res1, r_data$test$mailto_logit)
+
+# Profit
+final_profit <- 746 * 60 - (746 + 6171) * 1.41
+
+# generate mailto_wave 2 column
+r_data[["test"]] <- r_data[["test"]] %>%
+                    mutate(mailto_wave2 = factor(
+                        ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate) & res1 == "No", T, F),
                         levels = c(T, F))
 )
 
-saveRDS(r_data[["test"]]%>% select(id,mailto_wave2),"Lei_Qingqing_Xiaochen_NehalGroup4.rds")
+
+saveRDS(r_data[["test"]]%>% select(id,mailto_wave2),"Lei_Qingqing_Xiaochen_Nehal_Group4.rds")
 
 # scale the profit
 
 ## profit for validation set
-perf_calc <- function(mailto, intro){
-  dat <- r_data[["test"]]
-  perc_mailto <- mean(dat[[mailto]]== TRUE)
-  nr_mailto <- sum(dat[[mailto]] == TRUE)
-  rep_rate <- mean(dat$res1 == "Yes")*0.5
-  nr_resp <- nr_mailto*rep_rate
-  mailto_cost <- 1.41*nr_mailto
-  profit <- 60*nr_resp - mailto_cost
-  ROME <- profit/ mailto_cost
-  prn <- paste(intro, "the number of businesses to which we should mail offers is",
-               paste0(nr_mailto,"(", round(perc_mailto,4)*100, "%)."),
-               "The response rate for the targeted businesses is predicted to be",
-               paste0(round(rep_rate,4)*100, "%"), "or", nr_resp, "buyers. The expected profit is",
-               paste0("$", round(profit, 2), "."), "The mailing cost is estimated to be",
-               paste0("$", mailto_cost), "with a ROME of", paste0(round(ROME,4)*100, "%." ))
-  return(data.frame(perc_mailto, nr_mailto, rep_rate, nr_resp, mailto_cost, profit, ROME, prn))
-}
-
-final_profit <- perf_calc(mailto = "mailto_wave2", intro = "With Neural network model")
+# perf_calc <- function(mailto, intro){
+#   dat <- r_data[["test"]]
+#   perc_mailto <- mean(dat[[mailto]]== TRUE)
+#   nr_mailto <- sum(dat[[mailto]] == TRUE)
+#   rep_rate <- mean(dat$res1 == "Yes")*0.5
+#   nr_resp <- nr_mailto*rep_rate
+#   mailto_cost <- 1.41*nr_mailto
+#   profit <- 60*nr_resp - mailto_cost
+#   ROME <- profit/ mailto_cost
+#   prn <- paste(intro, "the number of businesses to which we should mail offers is",
+#                paste0(nr_mailto,"(", round(perc_mailto,4)*100, "%)."),
+#                "The response rate for the targeted businesses is predicted to be",
+#                paste0(round(rep_rate,4)*100, "%"), "or", nr_resp, "buyers. The expected profit is",
+#                paste0("$", round(profit, 2), "."), "The mailing cost is estimated to be",
+#                paste0("$", mailto_cost), "with a ROME of", paste0(round(ROME,4)*100, "%." ))
+#   return(data.frame(perc_mailto, nr_mailto, rep_rate, nr_resp, mailto_cost, profit, ROME, prn))
+# }
 
 # scale to 801,821 businesses with 38,487 already responded
 profit_scaled <-
-  (final_profit$profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
+  (final_profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
 

@@ -1,12 +1,18 @@
 ---
-title: Intuit Quickbooks Upgrade
-output: html_document
+title: MTGA455 Intuit Quickbooks Upgrade
+output:
+  html_document:
+    highlight: textmate
+    theme: spacelab
+    df_print: paged
+    code_folding: hide
+    code_download: true
 ---
 
-* Team-lead GitLab id: 
-* Team-lead GitLab username: 
+* Team-lead GitLab id: 1530122
+* Team-lead GitLab username: rsm2-leduan
 * Group number: 4
-* Group name: 
+* Group name: Group 4
 * Team member names: Lei Duan, Nehal Jain, Qingqing Long, Xiaochen Li
 
 ```{r r_setup, include = FALSE}
@@ -49,361 +55,618 @@ pre, code, pre code {
 </style>
 
 ## Setup
-
-Please complete this Rmarkdown document with your group by answering the questions in `intuit-quickbooks.pdf` on Dropbox (week6/readings/). Create an HTML file with all your results and comments and push both the Rmarkdown and HTML file to GitLab when your team is done. All results MUST be reproducible (i.e., the TA and I must be able to recreate the HTML from the Rmarkdown file without changes or errors).
-
 ```{r}
-## loading the data. Note that data must be loaded from Dropbox/MGTA455-2018/data
+## loading the data
 intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
-#str(intuit75k_wrk)
-## Recall that Radiant stores all datasets in a list called r_data 
-## if you are planning to use data transformation commands generated 
-## in Radiant uncomment the lines below and comment out the line above
 r_data <- list()
 r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
 ```
 
-## Question answers
+
+### Part I. Background
+Intuit is an American software company that develops financial and tax preparation software and related services for small businesses, accountants and individuals. To increase sales uplift on Quickbook with minimum cost, the firm inserted a modeling effort between the first and second waves of any direct mail campaign. Our objective is to build predictive models to identify high-potential customers in validation sample who have not responded in wave-1 direct mailing campaign and have the tendency to purchase after wave-2 campaign.
 
 
 
+### Part II. Methodology
+For each model, we established prediction models based on variables on the training set and make prediction on the validation set. The models we used are:
+
+1. Sequential RFM
+
+2. Logistic Regression
+
+3. Naive Bayes
+
+4. Neural Networks
 
 
 
-
-
-
-### 1. RFM
-
-#### 1.1 Independent RFM
+### Part III. Feature Engineering
+Since there are 50 states in the U.S., we created a new variable “zip_bins_50” by redividing “zip” variable into 50 bins and converted it to factor for future exploration.  
 ```{r}
-# create rec_iq, frec_iq and mon_iq
-intuit75k_wrk <- intuit75k_wrk %>% 
-                  mutate(rec_iq = xtile(last, 5),
-                         freq_iq = xtile(numords, 5, rev = TRUE),
-                         mon_iq = xtile(dollars, 5, rev = TRUE)) 
-
-# check the plot of response rate per rec_iq
-intuit75k_wrk %>% 
-  group_by(rec_iq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = rec_iq, y = res_rate), stat = 'identity', position = 'stack')
-
-# check the plot of response rate per rec_iq: only 4 quintiles
-intuit75k_wrk %>% 
-  group_by(freq_iq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = freq_iq, y = res_rate), stat = 'identity', position = 'stack')
-
-# Why are there only 4 values? Looking at the histogram below we see that the distribution of numords is heavily 
-# skewed (to the right). This makes it difficult to create 5 bins of similar size
-intuit75k_wrk %>% ggplot(aes(x = numords)) + geom_bar(stat = 'count', position = 'stack')
-
-# check the plot of response rate per mon_iq
-intuit75k_wrk %>% 
-  group_by(mon_iq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = mon_iq, y = res_rate), stat = 'identity', position = 'stack')
-
-# create independent rfm index: rfm_iq
-intuit75k_wrk <- mutate(intuit75k_wrk, rfm_iq = paste0(rec_iq, freq_iq, mon_iq))
-
-# view rfm_iq index
-intuit75k_wrk %>% 
-  group_by(rfm_iq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = rfm_iq, y = res_rate), stat = 'identity', position = 'stack')
-
+## newZipbins
+intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
+intuit75k_wrk$zip_bins_50 <- as.factor(xtile(as.numeric(intuit75k_wrk$zip), 50))
 ```
 
-The breakeven is 2.35%.
-```{r}
-breakeven <- 1.41 / 60
-```
+
+
+### Part IV. Model Selection and Optimization
+#### I) Sequential RFM:
+We built a sequential RFM index by selecting “last” variable as recency, use “numords” as frequency and “dollars” as monetary variable and generating quintiles accordingly. Then an average response rate is calculated as predicted probability “prob_rfm” by using “mean(res1 == ‘Yes’)” for each cell.  This will be used for the comparison of RFM evaluation with other models is in the later part. 
 
 ```{r}
-# Target mail group using independent quintiles
-intuit75k_wrk <- group_by(intuit75k_wrk, rfm_iq) %>% 
-                  mutate(mailto_iq = mean(res1 == "Yes") / 2 > breakeven & res1 == "No") %>% 
-                  ungroup()
+## breakeven
+mailing_cost <- 1.41
+net_rev <- 60
+BE_resp_rate <- mailing_cost / net_rev
+
+# create sequential RFM index
+intuit75k_wrk <- intuit75k_wrk %>%
+  mutate(rec_sq = xtile(last,5)) %>%
+  group_by(rec_sq) %>%
+  mutate(freq_sq = xtile(numords,5, rev = T)) %>%
+  group_by(rec_sq,freq_sq) %>%
+  mutate(mon_sq = xtile(dollars, 5, rev = T),
+         rfm_sq = paste0(rec_sq, freq_sq, mon_sq)) %>%
+  group_by(rfm_sq) %>%
+  mutate(prob_rfm = mean(res1 == "Yes")) %>%
+  ungroup()
+
+# split training and test data set
+r_data <- list()
+r_data[['training']] <- filter(intuit75k_wrk,training == 1)
+r_data[['test']] <- filter(intuit75k_wrk,training == 0)
 ```
 
+
+#### II) Logistic Regression
+Our approach is to first **test on the original variables, add interaction terms among explanatory variables and then consider adding new feature**.   
+
+Firstly, we dumped all explanatory variables except “id” and “training” to build a full logistic regression model and predict the response probability in validation set saving it as “prob_logit”. Lower bound “prob_logit_lb” and upper bound probability “prob_logit_ub”  was also predicted with considering 95% confidence interval. According to the insignificant variables shown in initial regression result *(see it in **appendix 1**)*, we repeated the procedure to build other seven models where “sex”, “bizflag”, “sincepurch” were removed separately and simultaneously and made prediction again. The results were saved the predicted probabilities as “prob_ns” (no sex), “prob_nbf” (no bizflag), “prob_nsp” (no sincepurch), “prob_nsbf” (no sex & bizflag), “prob_nssp” (no sex & sincepurch), “prob_nbfsp” (no bizflag & sincepurch) and “prob_nsbfsp” (no sex & bizflag & sincepurch) correspondingly. 
+
+After comparing profit, AUC and other evaluation features of all seven models, we find the model without “bizflag” achieves the highest profit while its AUC was quite close to others *(see summary in **appendix 2**)*. Hence, we believe that the model without “bizflag” is the optimal logistic regression model when considering the original variables only. 
+
+Then we paid attention to the interaction terms. “version1” and “upgraded” variables indicates that customers use either version 1 or 2, and if customers didn’t use version 1 or upgraded version 1 to 2, they must have purchased the latest version of intuit quickbook. Checked that the correlation between “version1” and “upgraded” is not high *(see plot in **appendix 3**)*, therefore, we believe there is an interaction between “version1” and “upgraded” and it may be benefitial to add the interaction into the optimal model. Repeating the model building process, we saved the predicted probability as ”prob_logit_nbf_in”. It turns out that prob_logit_nbf_in gets the highest profit and AUC compared with others *(see summary in **appendix 4**)*.
+
+Now, we reconsider the “zip_bins” variable to further optimize final model. Replacing “zip_bins” with “zip_bins_50” in the model leads to the dropdown of profit *(see summary in **appendix 5**)*.  In summary, **the logistic regression model using “zip_bins” without “bizflag” adding interaction between “version1” and “upgraded” gives us the highest profit and AUC**. The variable “prob_logit_nbf_in” created from this model will be used in model evaluation part below. Based on this best model, we bootstrapped and saved the result as "prob_nbiz_int_bt" *(see code in **appendix 6**)*.
+
+
+#### III) Naive Bayes
+Similar to what we did for logistic regression, we built a full naive bayes model by putting every explanatory variable except “id” and “training”, predicting the response probability in validation set and saving it as “prob_nb”. Then repeated the same procedure and built another three insignificant models where “bizflag”, “sex” were removed separately and simultaneously. Saved the results as “prob_nb_nobiz”, “prob_nb_nosex” and “prob_nb_nobiz_nosex” correspondingly. 
+
+Then we compared the four lists of predicted probabilities using ‘evaluate classification’ option in Radiant. It shows that the the model without “bizflag” obtains the highest profit while keeping the same AUC and accuracy with other models *(see summary in **appendix 7**)*. Thus we believe the model without “bizflag” is the optimal when using the original variables in model.
+
+The model even achieved higher profit after changing “zip_bins” to “zip_bins_50” *(see summary in **appendix 8**)*. In conclusion, **the best naive bayes model we adopted is to remove “bizflag” and “zip_bins” from full model and add back “zip_bins_50”** as explanatory variables. The variable “prob_nb_nobiz_zip50” generated from this model will be used to compare with other models in evaluation part.
+
+#### IV) Neural Network
+No feature selection is required for neural network as the process itself is auto-selection. To find the best model parameter, we wrote a function to select the best combination of decay (from 0.5 to 3) and size (from 1 to 5), it shows that the model achieves the highest profit and AUC when decay is 0.5 and size is 5 *(see it in **appendix 9**)*. 
+
+To evaluate the prediction accuracy of model, **bootstrapping** is completed by re-estimating the best NN model 100 times, each time with a different bootstrap sample from original training data. We stored the predicted response probabilities for each sample in a new data.frame and calculated the 5th percentile of the predictions to use as the lower bound on the estimated probability *(see it in **appendix 9**)*.
+
+Based on this parameter, we built the neural network model and saved the results as “prob_nn_lb”, "prob_nn_newzip_lb"(changing "zip_bins" to "zip_bins_50" in model) and "prob_nn_newzip_mean"(changing bins and use 50% as cutoff in predicted probability).
+
+
+
+#### Part V. Model Evaluation 
+After generating the optimal prediction probabilities from RFM, logistic regression, naive bayes and neural network, we evaluated each classification model using “Evaluate Classification” button in Radiant *(see it in **appendix 10**)*. It shows that **logistic model adding interaction without “bizflag” achieves the highest profitability, AUC, lifts and gains** compared with others.
+
+**Targeted Customer in Wave-2 and Projected Profit**
+
+We first generated a new variable “mailto_logit” to indicate which is more likely to respond in wave II. The variable will return “True” if the half of “prob_logit_nbf_in” is greater than breakeven rate and vice versa. Based on the “mailto_logit” column, we find that **the expected profit from validation set is $35,007** based on the confusion matrix *(shown in **appendix 11**)*.
+
+$$ Profit = 746 * 60 - (746 + 6171) * 1.41 = 35007.03$$
+
+Then we generated a new variable “mailto_wave2” to indicate who will be received direct mailing in wave-2 campaign in validation set. The variable will return “True” only if the half of “prob_logit_nbf_in” is greater than breakeven rate as well as its res1 is equal to “Yes”, vice versa. 
+
+If we scale the profit estimate derived from the best model’s performance in the validation sample to the full set of businesses to target in wave-2, **the profit we anticipate from wave-2 will be $1,248,869** *(see code in **appendix 11**)*.
+
+$$ FinalProfit = 35007.03 / 21397 * (801821 - 38487) = 1248869$$
+
+
+
+#### Part VI. Conclusion & Learnings:
+From this study we can draw the conclusion that the high margin of selling quickbooks provides us with the opportunity to target more high-potential customers with less efforts. Besides, lower bound predictive approach in both logistic and neural network is too conservative to achieve the highest profit.
+
+
+
+#### Part VII. Appendix
+##### 1. Logistic model - Full
 ```{r}
-# write function to calculate profit
-perf_calc <- function(sms, intro) {
-  dat <- intuit75k_wrk
-    
-  # no. of wave II mails to be sent to validation base
-  nr_mail <- sum(dat[[sms]] & dat['training'] == 0 & dat['res1'] == "No")
+## Full model
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "sex", "bizflag",
+    "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+summary(result)
+pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
+store(pred, data = "test", name = c("prob_logit", "prob_logit_lb","prob_logit_ub"))
 
-  # estimate response rate based on the overall response rate
-  rep_rate <- mean(dat['res1'] == "Yes") * .5
+## Model without sex
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "bizflag",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_ns")
 
-  # no. of customers responsed in 22.5k base
-  nr_resp <- nr_mail * rep_rate
-  
-  mail_cost <- 1.41 * nr_mail
+## Model without bizflag
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "sex",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test", conf_lev = .9, se = TRUE)
+store(pred, data = "test", name = c("prob_logit_nbf", "prob_logit_nbf_lb"))
 
-  profit = 60* nr_resp - mail_cost
-  ROME = profit / mail_cost
-  prn <- paste(intro, "the number of customers Intuit should send is", paste0(round(nr_mail, 1), "."),
-               "The response rate for the selected customers is predicted to be",
-               paste0(round(rep_rate*100, 2),"%"), "or", round(nr_resp), paste0("buyers", "."), "The expected profit is", 
-               paste0("$", round(profit), "."), "The mail cost is estimated to be", paste0(round(mail_cost)), "with a ROME of", 
-               paste0(round(ROME*100, 2), "%", "."))
+## Model without sincepurch
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "sex", "bizflag",
+           "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nsp")
 
-  results <- data.frame(profit, ROME, prn, rep_rate)
-  return(results)
-}
+
+## Model without sex and bizflag
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nsbf")
+
+## Model without sex and sincepurch
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nssp")
+
+## Model without bizflag and sincepurch
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins",
+           "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nbfsp")
+
+## Model without sex, bizflag and sincepurch
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins",
+           "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes"
+)
+#summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_logit_nsbfsp")
 ```
 
-```{r results = "asis"}
-res <- perf_calc(sms = "mailto_iq", intro = "Based on Independent RFM model")
-profit_iq <- res$profit
-ROME_iq <- res$ROME
-cat(res$prn)
-```
 
+##### 2. Logistic model comparison
 ```{r}
-## calculate response rate per group as an illustration
-intuit75k_wrk <- group_by(intuit75k_wrk, rfm_iq) %>% 
-                 mutate(rfm_iq_resp = mean(res1 == "Yes" & training == "1")) %>% 
-                 ungroup()
+# 2. AUC, profit, ROME checking for different models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_logit", "prob_logit_lb",
+    "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp",
+    "prob_logit_nsbf", "prob_logit_nssp", "prob_logit_nbfsp", "prob_logit_nsbfsp"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+eval_logit <- summary(result)
 ```
 
-```{r}
-# overall response rate in training set
-resp.rate <- mean(intuit75k_wrk$res1 == "Yes" & intuit75k_wrk$training == "1") 
-no.resp <- sum(intuit75k_wrk$res1 == "Yes" & intuit75k_wrk$training == "1") 
-```
-
-```{r}
-# function to generate table for lift & gain plots
-get_lift_gain <- function(pred_prob) {
-  # select training set
-  dat <- subset(intuit75k_wrk, training == "1")
-  # create 10 deciles based on pred_prob
-  dec <- xtile(dat[[pred_prob]], 10, rev = TRUE)
-  dat$dec <- dec
-  # create new variables to get lift, Cum_lift, Gains, Cum_gains
-  intuit_lift <- dat %>% group_by(dec) %>% 
-                  dplyr::summarise(n = n(), sum = sum_rm(res1 == "Yes"), mean = mean_rm(res1 == "Yes")) %>% 
-                  mutate(lift = mean / resp.rate, Cum.customer = cumsum(n), 
-                         Cum_cust_prop = Cum.customer / 52500, Cum.buyer = cumsum(sum), 
-                         Cum.resp.rate = Cum.buyer / Cum.customer, Cum_lift = Cum.resp.rate / resp.rate,
-                         Gains = sum /no.resp, Cum_gains = Cum.buyer / no.resp)
-  return(intuit_lift)
-}
-
-# save table
-lift_iq <- get_lift_gain(pred_prob = "rfm_iq_resp")
-```
-
-#### 1.2 Sequential RFM
-
-```{r}
-## calculate sequential frequency quintiles
-intuit75k_wrk <- intuit75k_wrk %>% 
-                  group_by(rec_iq) %>% 
-                  mutate(freq_sq = xtile(numords, 5, rev = TRUE)) %>% 
-                  ungroup() %>% 
-                  group_by(rec_iq, freq_sq) %>% 
-                  mutate(mon_sq = xtile(dollars, 5, rev = TRUE)) %>% 
-                  ungroup() %>% 
-                  mutate(rfm_sq = paste0(rec_iq, freq_sq, mon_sq))
-
-# assess response rate per rec_iq: only 4 quintiles
-intuit75k_wrk %>% 
-  group_by(freq_sq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = freq_sq, y = res_rate), stat = 'identity', position = 'stack')
-
-# assess response rate per mon_sq
-intuit75k_wrk %>% 
-  group_by(mon_sq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = mon_sq, y = res_rate), stat = 'identity', position = 'stack')
-
-# view rfm_sq index
-intuit75k_wrk %>% 
-  group_by(rfm_sq) %>% 
-  summarise(res_rate = mean(res1 == "Yes")) %>% 
-  ggplot() + geom_bar(aes(x = rfm_sq, y = res_rate), stat = 'identity', position = 'stack')
-```
-
-```{r}
-# Target group using sequential quintiles
-intuit75k_wrk <- group_by(intuit75k_wrk, rfm_sq) %>% 
-                  mutate(mailto_sq = mean(res1 == "Yes") / 2 > breakeven & res1 == "No") %>% 
-                  ungroup()
-```
-
-```{r results = "asis"}
-res <- perf_calc(sms = "mailto_sq", intro = "Based on Sequential RFM model")
-profit_sq <- res$profit
-ROME_sq <- res$ROME
-cat(res$prn)
-```
-
-```{r}
-## calculate response rate per group as an illustration
-intuit75k_wrk <- group_by(intuit75k_wrk, rfm_sq) %>% 
-                 mutate(rfm_sq_resp = mean(res1 == "Yes" & training == "1")) %>% 
-                 ungroup()
-
-# save table for lift & gain plot
-lift_sq <- get_lift_gain(pred_prob = "rfm_sq_resp")
-```
-
-### 2. Logistic
-Correlation plot: 
+#### 3. Correlation plot
 ```{r fig.width = 12.38, fig.height = 12.38, dpi = 96}
 result <- correlation(
   dataset = "intuit75k_wrk", 
   vars = c(
     "zip_bins", "bizflag", "numords", "dollars", "last", "sincepurch", 
     "version1", "owntaxprod", "upgraded", "res1"
-  ), 
-  data_filter = "training == '1'"
+  )
 )
 summary(result)
 plot(result, n = 1000)
 ```
 
-Full model:
-```{r fig.width = 7, fig.height = 5.82, dpi = 96}
-result <- logistic(
-  dataset = "intuit75k_wrk", 
-  rvar = "res1", 
-  evar = c(
-    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
-    "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
-  data_filter = "training == '1'"
-)
-summary(result, sum_check = "vif")
-plot(result, plots = "coef", custom = FALSE)
-```
-
-Sincepurch has high p_value and VIF, so let's test the "sincepurch" variable to see if any change:
-```{r fig.width = 7, fig.height = 5.82, dpi = 96}
-result <- logistic(
-  dataset = "intuit75k_wrk", 
-  rvar = "res1", 
-  evar = c(
-    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
-    "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
-  data_filter = "training == '1'"
-)
-summary(result, sum_check = "vif", test_var = "sincepurch")
-plot(result, plots = "coef", custom = FALSE)
-```
-
-Chi-squared is 0.268 with p.value of 0.605, meaning we cannot say model 1 and 2 have much difference.
-Then I predict based on the full model:
-
+##### 4. Logistic model: adding interaction
 ```{r}
+# 3. Final model without bizflag adding interaction
 result <- logistic(
-  dataset = "intuit75k_wrk", 
-  rvar = "res1", 
-  evar = c(
-    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
-    "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
-  data_filter = "training == '1'"
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins", "sex",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes",
+  int = "version1:upgraded"
 )
+pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
+store(pred, data = "test", name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb","prob_logit_nbf_in_ub"))
 
-#summary(result, sum_check = "vif", test_var = "sincepurch")
-intuit_test <- subset(intuit75k_wrk, training == "0") 
-pred <- predict(result, pred_data = "intuit_test")
-print(pred, n = 10)
-store(pred, data = "intuit_test", name = "predict_logit")
-intuit75k_wrk$pred_logit <- r_data$intuit75k_wrk$predict_logit
-
-# create mailto_logit
-intuit75k_wrk <- mutate(intuit75k_wrk, mailto_logit = ifelse(pred_logit > breakeven, TRUE, FALSE))
-
-# confusion matrix
-intuit75k_wrk_train <- subset(intuit75k_wrk, training == "1")
-table(intuit75k_wrk_train$res1, intuit75k_wrk_train$mailto_logit)
-(2225 + 14822) / 52500
-
+# compare four models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_logit_nbf", "prob_logit_nbf_lb", "prob_logit_nbf_in", "prob_logit_nbf_in_lb"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+summary(result)
+# adding interaction terms does not make much difference, will choose model w/o bizflag as optimal model
 ```
 
+
+##### 5. Logistic model: changing zip_bins to zip_bins_50
 ```{r}
-## create new variable(s)
-r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_logit = ifelse(purch_prob_logit > 0.0235 / 2, TRUE, FALSE))
+# change zipbins to zipbins_50
+result <- logistic(
+  dataset = "training",
+  rvar = "res1",
+  evar = c("zip_bins_50", "sex",
+           "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
+  ),
+  lev = "Yes",
+  int = "version1:upgraded"
+)
+pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
+store(pred, data = "test", name = "prob_logit_nbf_in_newbin")
+
+# compare four models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_logit_nbf_in", "prob_logit_nbf_in_newbin"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+summary(result)
 ```
 
-Profit:
-```{r results = "asis"}
-res <- perf_calc(sms = "mailto_logit", intro = "Based on Sequential RFM model")
-profit_sq <- res$profit
-ROME_sq <- res$ROME
-cat(res$prn)
+##### 6. Logistic model: bootstrapping
+```{r}
+#----------------------------------------- Run on server------------------------------------------
+# library(radiant)
+# intuit75k_wrk <- readr::read_rds("intuit75k.rds")
+# intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
+# mailing_cost <- 1.41
+# net_rev <- 60
+# BE_resp_rate <- mailing_cost / net_rev
+# training <- filter(intuit75k_wrk,training == 1)
+# test <- filter(intuit75k_wrk,training == 0)
+#
+# #################################################################################################
+# r_data <- list()
+# r_data[["intuit75k_wrk"]] <- intuit75k_wrk
+# r_data[["test"]] <- test
+# r_data[["training"]] <- training
+#
+# logit_result <- data.frame(matrix(NA, nrow = 22500, ncol = 101))
+# logit_result[[1]] <- test[["id"]]
+# for (i in 1:100){
+#   dat <- sample_n(training,52500,replace = TRUE)
+#   result <- logistic(
+#     dataset = dat,
+#     rvar = "res1",
+#     evar = c(
+#       "zip_bins", "sex","numords", "dollars", "last", "sincepurch",
+#       "version1", "owntaxprod", "upgraded"
+#     ),
+#     lev = "Yes",
+#     int = "version1:upgraded"
+#   )
+#   logit_result[[i+1]] <- predict(result, pred_data = test)$Prediction
+# }
+#
+# logit_result$prob_nbiz_int_bt <- apply(logit_result[,2:101],1,quantile,probs = 0.05)
+# logit_result <- logit_result %>% select(id = X1, prob_nbiz_int_bt)
+logit_result <- readRDS("logit_result.rds")
+r_data[['test']]$prob_logit_nbf_int_bt_lb <- logit_result$prob_nbiz_int_bt
 ```
 
-### 3.Naive Bayes
-
-```{r fig.width = 7, fig.height = 5.38, dpi = 96}
+##### 7. Naive Bayes: testing on orginal variables 
+```{r}
+# Full model
 result <- nb(
-  dataset = "intuit75k_wrk", 
-  rvar = "res1", 
+  dataset = "training",
+  rvar = "res1",
   evar = c(
-    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
+    "zip_bins", "sex", "bizflag", "numords", "dollars", "last",
     "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  data_filter = "training == '1'"
+  )
+)
+summary(result)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb")
+
+# full - bizflag
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "sex", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nobiz")
+
+# full - biz - sex
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nobiz_nosex")
+
+# Full model - sex
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins", "bizflag", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nosex")
+
+# compare model performance
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_nosex",
+    "prob_nb_nosex"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+eval_nb <- summary(result)
+# prob_nb_nobiz is slightly better on profit, so we choose prob_nb_nobiz as the best estimator
+# among naive bayes.
+```
+
+##### 8. Naive Bayes: changing zip_bins to zip_bins_50
+```{r}
+# Also we want to test if zip_bins_50 is better than zipbins
+# full - bizflag - change zipbins to zipbins_50
+result <- nb(
+  dataset = "training",
+  rvar = "res1",
+  evar = c(
+    "zip_bins_50", "sex", "numords", "dollars", "last",
+    "sincepurch", "version1", "owntaxprod", "upgraded"
+  )
+)
+pred <- predict(result, pred_data = "test")
+store(pred, data = "test", name = "prob_nb_nobiz_zip50")
+
+# chechk result
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_nb_nobiz", "prob_nb_nobiz_zip50"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+eval_nb <- summary(result)
+# replacing zipbin with zipbins_50 is better. Final model is no bizflag adding zipbins_50
+```
+
+##### 9. Neural Network
+```{r}
+#----------------------------------------- Run on server------------------------------------------
+
+## 1. choose the best size & decay combination
+
+# for (i in 1:5){
+#   size = i
+#   for (j in 1:6) {
+#     decay = j/2
+#     result <- nn(
+#       dataset = "training",
+#       rvar = "res1",
+#       evar = c(
+#         "zip_bins","sex","bizflag", "numords", "dollars", "last", "sincepurch",
+#         "version1", "owntaxprod", "upgraded"),
+#       decay = decay,
+#       size = size,
+#       lev = "Yes",
+#       seed = 1234)
+#     pred <- predict(result, pred_data = "intuit75k_wrk")
+#     store(pred, data = "intuit75k_wrk", name = paste("nn",i,j/2,sep="_"))
+#   }
+# }
+#
+# result <- confusion(
+#   dataset = "intuit75k_wrk",
+#   pred = colnames(r_data[["intuit75k_wrk"]])[15:43],
+#   rvar = "res1",
+#   lev = "Yes",
+#   cost = 1.41,
+#   margin = 60,
+#   train = "All"
+# )
+
+## 2. use size = 5 & decay = 0.5 as the best combination to predict with bootstrap
+
+# set.seed(1234)
+# nn_result <- data.frame(matrix(NA, nrow = 22500, ncol = 101))
+# nn_result[[1]] <- test[["id"]]
+# for (i in 1:100){
+#   dat <- sample_n(training,52500,replace = TRUE)
+#   result <- nn(
+#     dataset = dat,
+#     rvar = "res1",
+#     evar = c(
+#       "zip_bins_50", "sex","bizflag","numords", "dollars", "last", "sincepurch",
+#       "version1", "owntaxprod", "upgraded"
+#     ),
+#     size = 5,
+#     decay = 0.5,
+#     lev = "Yes",
+#     seed = 1234
+#   )
+#   nn_result[[i+1]] <- predict(result, pred_data = test)$Prediction
+# }
+#
+# nn_result$prob_nn_lb <- apply(nn_result[,2:101],1,quantile,probs = 0.05)
+# nn_result <- nn_result %>% select(id = X1, prob_nn_lb)
+#-------------------------------------------------------------------------------------------------
+eval_nn.rds <- readRDS("eval_nn.rds")
+nn_result <- readRDS("nn_result.rds")
+nn_result_newzip <- readRDS("nn_result_newzip.rds")
+r_data[['test']]$prob_nn_lb <- nn_result$prob_nn_lb
+r_data[['test']]$prob_nn_newzip_lb <- nn_result_newzip$prob_nn_newzip_lb
+r_data[['test']]$prob_nn_newzip_mean <- nn_result_newzip$prob_nn_newzip_mean
+```
+
+##### 10. Model evaluation
+```{r}
+# Evaluation
+result <- evalbin(
+  dataset = "test",
+  pred = c(
+    "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_int_bt_lb",
+    "prob_nb_nobiz_zip50","prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
+)
+summary(result)
+plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) #%>%
+#  gridExtra::grid.arrange(grobs = ., top = "Model evaluation", ncol = 2)
+
+# Confusion matrix for different models
+result <- confusion(
+  dataset = "test",
+  pred = c(
+    "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_in_ub","prob_logit_nbf_int_bt_lb",
+    "prob_nb_nobiz_zip50", "prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
+  ),
+  rvar = "res1",
+  lev = "Yes",
+  cost = 1.41,
+  margin = 60,
+  train = "All"
 )
 summary(result)
 plot(result)
-pred <- predict(result, pred_data = "intuit75k_wrk")
-print(pred, n = 10)
-store(pred, data = "intuit75k_wrk", name = "purch_prob_nb")
-# write.csv(pred, file = "~/nb_predictions.csv", row.names = FALSE)
+
+# profit plot
+compare <- result$dat
+visualize(
+  dataset = "compare",
+  xvar = "Predictor",
+  yvar = "profit",
+  type = "bar",
+  custom = TRUE
+) +
+  labs(title = "Campaign profit", x = "") +
+  geom_text(aes(label = formatnr(profit, dec = 0)), vjust = 2)
+
+# ROME plot
+visualize(
+  dataset = "compare",
+  xvar = "Predictor",
+  yvar = "ROME",
+  type = "bar",
+  custom = TRUE
+) +
+  labs(title = "Campaign ROME", x = "") +
+  geom_text(aes(label = formatnr(ROME, dec = 2)), vjust = 2)
 ```
 
-Create mailto_nb:
-```{r}
-intuit75k_wrk$pred_nb <- r_data$intuit75k_wrk$purch_prob_nb
+##### 11. Profit Calculation
+````{r}
+## Creating mailto columns
+r_data[["test"]] <- r_data[["test"]] %>%
+                    mutate(mailto_logit = factor(
+                      ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate), T, F),
+                      levels = c(T, F))
+  )
 
-## create new variable(s)
-r_data[["intuit75k_wrk_test"]] <- mutate(r_data[["intuit75k_wrk_test"]], mailto_nb = ifelse(purch_prob_nb > 0.0235, TRUE, FALSE))
-```
+# Compute profit based on confusion matrix
+table(r_data$test$res1, r_data$test$mailto_logit)
 
-Profit:
-```{r results = "asis"}
-res <- perf_calc(sms = "mailto_nb", intro = "Based on Sequential RFM model")
-profit_sq <- res$profit
-ROME_sq <- res$ROME
-cat(res$prn)
-```
+# Expected profit from validation set
+final_profit <- 746 * 60 - (746 + 6171) * 1.41
 
-
-### 4. ANN
-
-```{r fig.width = 7, fig.height = 5.38, dpi = 96}
-result <- ann(
-  dataset = "intuit75k_wrk", 
-  rvar = "res1", 
-  evar = c(
-    "zip_bins", "sex", "bizflag", "numords", "dollars", "last", 
-    "sincepurch", "version1", "owntaxprod", "upgraded"
-  ), 
-  lev = "Yes", 
-  decay = 0, 
-  seed = 1234, 
-  data_filter = "training == '1'"
+# generate mailto_wave 2 column
+r_data[["test"]] <- r_data[["test"]] %>%
+                    mutate(mailto_wave2 = factor(
+                        ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate) & res1 == "No", T, F),
+                        levels = c(T, F))
 )
-summary(result, prn = TRUE)
-plot(result, plots = "garson", custom = FALSE)
-pred <- predict(result, pred_data = "intuit75k_wrk_test")
 
-print(pred, n = 10)
-store(pred, data = "intuit75k_wrk_test", name = "purch_prob_ann")
-# readr::write_csv(pred, path = "ann_predictions.csv")
+saveRDS(r_data[["test"]]%>% select(id,mailto_wave2),"Lei_Qingqing_Xiaochen_Nehal_Group4.rds")
+
+# scale profit to 801,821 businesses with 38,487 already responded
+profit_scaled <-
+  (final_profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
 ```
