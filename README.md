@@ -3,7 +3,7 @@
 ### Hi, there!
 ### This is a churn rate management analysis for intuit Quickbook upgrades(the data has been disguised for academic purpose)
 
-See the more specific report from this [html]("report/intuit.html")
+See the more specific report from this [html](report/intuit.html)
 
 ## Data Summary: 
 * 75,000 oberservations
