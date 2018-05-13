@@ -45,6 +45,6 @@ See the more specific report from this [html](report/intuit.html)
 All the model's performance on train / validation set are compared to choose the best model and best parameters(eg: the layers of Neural Network)
 
 
-![model result_2]("pics/model_comparison_2.png")
+![model result_2](pics/model_comparison_2.png)
 
-![model result]("pics/model_comparison.png")
+![model result](pics/model_comparison.png)
