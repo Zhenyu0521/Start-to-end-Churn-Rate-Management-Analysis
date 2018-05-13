@@ -3,7 +3,7 @@
 ### Hi, there!
 ### This is a churn rate management analysis for intuit Quickbook upgrades(the data has been disguised for academic purpose)
 
-See the more specific report from this [html]("intuit.html")
+See the more specific report from this [html]("report/intuit.html")
 
 ## Data Summary: 
 * 75,000 oberservations
@@ -43,5 +43,8 @@ See the more specific report from this [html]("intuit.html")
 ## Overfitting test
 
 All the model's performance on train / validation set are compared to choose the best model and best parameters(eg: the layers of Neural Network)
+
+
+![model result_2]("pics/model_comparison_2.png")
 
 ![model result]("pics/model_comparison.png")
