@@ -1,4 +1,4 @@
-# Intuit-Churn-Rate-Management-Analysis-Experiment-Design
+# Intuit-Churn-Rate-Management-Analysis
 
 ### Hi, there!
 ### This is a churn rate management analysis for intuit Quickbook upgrades(the data has been disguised for academic purpose)
