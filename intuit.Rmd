@@ -1,65 +1,14 @@
 ---
 title: MTGA455 Intuit Quickbooks Upgrade
 output:
-  html_document:
-    highlight: textmate
-    theme: spacelab
-    df_print: paged
-    code_folding: hide
-    code_download: true
+  github_document:
+    toc: true
+    toc_depth: 2
 ---
 
-* Team-lead GitLab id: 1530122
-* Team-lead GitLab username: rsm2-leduan
-* Group number: 4
-* Group name: Group 4
-* Team member names: Lei Duan, Nehal Jain, Qingqing Long, Xiaochen Li
-
 ```{r r_setup, include = FALSE}
-## initial settings
-knitr::opts_chunk$set(
-  comment = NA,
-  echo = TRUE,
-  error = TRUE,
-  cache = FALSE,
-  message = FALSE,
-  dpi = 96,
-  warning = FALSE
-)
-
-## width to use when printing tables etc.
-options(
-  width = 250,
-  scipen = 100,
-  max.print = 5000,
-  stringsAsFactors = FALSE
-)
-
 ## load radiant packages if needed
 if (!exists("r_environment")) library(radiant)
-```
-
-<style>
-.table {
-  width: auto;
-}
-ul, ol {
-  padding-left: 18px;
-}
-pre, code, pre code {
-  overflow: auto;
-  white-space: pre;
-  word-wrap: normal;
-  background-color: #ffffff;
-}
-</style>
-
-## Setup
-```{r}
-## loading the data
-intuit75k_wrk <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
-r_data <- list()
-r_data[["intuit75k_wrk"]] <- readr::read_rds(file.path(find_dropbox(), "MGTA455-2018/data/intuit75k.rds"))
 ```
 
 
@@ -85,6 +34,9 @@ For each model, we established prediction models based on variables on the train
 * Since there are 50 states in the U.S., we created a new variable “zip_bins_50” by redividing “zip” variable into 50 bins and converted it to factor for future exploration.    
 * Besides, we made interaction variables for version1:upgraded, since we believe in this way, can we make a more specific clients segements to target them better.  
 ```{r}
+## loading the data
+intuit75k_wrk <- readRDS("data/intuit75k.rds")
+
 ## newZipbins
 intuit75k_wrk$zip_bins <- as.factor(intuit75k_wrk$zip_bins)
 intuit75k_wrk$zip_bins_50 <- as.factor(xtile(as.numeric(intuit75k_wrk$zip), 50))
@@ -97,6 +49,7 @@ intuit75k_wrk$zip_bins_50 <- as.factor(xtile(as.numeric(intuit75k_wrk$zip), 50))
 We built a sequential RFM index by selecting `last` variable as recency, use `numords` as frequency and `dollars` as monetary variable and generating quintiles accordingly. Then an average response rate is calculated as predicted probability `prob_rfm` by using `mean(res1 == ‘Yes’)` for each cell.  This will be used for the comparison of RFM evaluation with other models is in the later part. 
 
 ```{r}
+
 ## breakeven
 mailing_cost <- 1.41
 net_rev <- 60
@@ -115,9 +68,10 @@ intuit75k_wrk <- intuit75k_wrk %>%
   ungroup()
 
 # split training and test data set
-r_data <- list()
-r_data[['training']] <- filter(intuit75k_wrk,training == 1)
-r_data[['test']] <- filter(intuit75k_wrk,training == 0)
+
+training <- filter(intuit75k_wrk,training == 1)
+test <- filter(intuit75k_wrk,training == 0)
+
 ```
 
 
@@ -181,7 +135,7 @@ From this study we can draw the conclusion that:
 ```{r}
 ## Full model
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins", "sex", "bizflag",
     "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -189,12 +143,12 @@ result <- logistic(
   lev = "Yes"
 )
 summary(result)
-pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
-store(pred, data = "test", name = c("prob_logit", "prob_logit_lb","prob_logit_ub"))
+pred <- predict(result, pred_data = test, conf_lev = 0.9, se = TRUE)
+store(pred, data = test, name = c("prob_logit", "prob_logit_lb","prob_logit_ub"))
 
 ## Model without sex
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins", "bizflag",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -202,12 +156,12 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_ns")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_ns")
 
 ## Model without bizflag
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins", "sex",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -215,12 +169,12 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test", conf_lev = .9, se = TRUE)
-store(pred, data = "test", name = c("prob_logit_nbf", "prob_logit_nbf_lb"))
+pred <- predict(result, pred_data = test, conf_lev = .9, se = TRUE)
+store(pred, data = test, name = c("prob_logit_nbf", "prob_logit_nbf_lb"))
 
 ## Model without sincepurch
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins", "sex", "bizflag",
            "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
@@ -228,13 +182,13 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nsp")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_nsp")
 
 
 ## Model without sex and bizflag
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -242,12 +196,12 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nsbf")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_nsbf")
 
 ## Model without sex and sincepurch
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -255,12 +209,12 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nssp")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_nssp")
 
 ## Model without bizflag and sincepurch
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins",
            "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
@@ -268,12 +222,12 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nbfsp")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_nbfsp")
 
 ## Model without sex, bizflag and sincepurch
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins",
            "numords", "dollars", "last", "version1", "owntaxprod", "upgraded"
@@ -281,8 +235,8 @@ result <- logistic(
   lev = "Yes"
 )
 #summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_logit_nsbfsp")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_logit_nsbfsp")
 ```
 
 
@@ -290,7 +244,7 @@ store(pred, data = "test", name = "prob_logit_nsbfsp")
 ```{r}
 # 2. AUC, profit, ROME checking for different models
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_logit", "prob_logit_lb",
     "prob_logit_ns", "prob_logit_nbf", "prob_logit_nsp",
@@ -322,7 +276,7 @@ plot(result, n = 1000)
 ```{r}
 # 3. Final model without bizflag adding interaction
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins", "sex",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -330,12 +284,12 @@ result <- logistic(
   lev = "Yes",
   int = "version1:upgraded"
 )
-pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
-store(pred, data = "test", name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb","prob_logit_nbf_in_ub"))
+pred <- predict(result, pred_data = test, conf_lev = 0.9, se = TRUE)
+store(pred, data = test, name = c("prob_logit_nbf_in", "prob_logit_nbf_in_lb","prob_logit_nbf_in_ub"))
 
 # compare four models
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_logit_nbf", "prob_logit_nbf_lb", "prob_logit_nbf_in", "prob_logit_nbf_in_lb"
   ),
@@ -354,7 +308,7 @@ summary(result)
 ```{r}
 # change zipbins to zipbins_50
 result <- logistic(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c("zip_bins_50", "sex",
            "numords", "dollars", "last", "sincepurch", "version1", "owntaxprod", "upgraded"
@@ -362,12 +316,12 @@ result <- logistic(
   lev = "Yes",
   int = "version1:upgraded"
 )
-pred <- predict(result, pred_data = "test", conf_lev = 0.9, se = TRUE)
-store(pred, data = "test", name = "prob_logit_nbf_in_newbin")
+pred <- predict(result, pred_data = test, conf_lev = 0.9, se = TRUE)
+store(pred, data = test, name = "prob_logit_nbf_in_newbin")
 
 # compare four models
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_logit_nbf_in", "prob_logit_nbf_in_newbin"
   ),
@@ -395,8 +349,8 @@ summary(result)
 # #################################################################################################
 # r_data <- list()
 # r_data[["intuit75k_wrk"]] <- intuit75k_wrk
-# r_data[["test"]] <- test
-# r_data[["training"]] <- training
+# r_data[[test]] <- test
+# r_data[[training]] <- training
 #
 # logit_result <- data.frame(matrix(NA, nrow = 22500, ncol = 101))
 # logit_result[[1]] <- test[["id"]]
@@ -425,7 +379,7 @@ r_data[['test']]$prob_logit_nbf_int_bt_lb <- logit_result$prob_nbiz_int_bt
 ```{r}
 # Full model
 result <- nb(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c(
     "zip_bins", "sex", "bizflag", "numords", "dollars", "last",
@@ -433,48 +387,48 @@ result <- nb(
   )
 )
 summary(result)
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_nb")
 
 # full - bizflag
 result <- nb(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c(
     "zip_bins", "sex", "numords", "dollars", "last",
     "sincepurch", "version1", "owntaxprod", "upgraded"
   )
 )
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb_nobiz")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_nb_nobiz")
 
 # full - biz - sex
 result <- nb(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c(
     "zip_bins", "numords", "dollars", "last",
     "sincepurch", "version1", "owntaxprod", "upgraded"
   )
 )
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb_nobiz_nosex")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_nb_nobiz_nosex")
 
 # Full model - sex
 result <- nb(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c(
     "zip_bins", "bizflag", "numords", "dollars", "last",
     "sincepurch", "version1", "owntaxprod", "upgraded"
   )
 )
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb_nosex")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_nb_nosex")
 
 # compare model performance
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_nb", "prob_nb_nobiz", "prob_nb_nobiz_nosex",
     "prob_nb_nosex"
@@ -495,19 +449,19 @@ eval_nb <- summary(result)
 # Also we want to test if zip_bins_50 is better than zipbins
 # full - bizflag - change zipbins to zipbins_50
 result <- nb(
-  dataset = "training",
+  dataset = training,
   rvar = "res1",
   evar = c(
     "zip_bins_50", "sex", "numords", "dollars", "last",
     "sincepurch", "version1", "owntaxprod", "upgraded"
   )
 )
-pred <- predict(result, pred_data = "test")
-store(pred, data = "test", name = "prob_nb_nobiz_zip50")
+pred <- predict(result, pred_data = test)
+store(pred, data = test, name = "prob_nb_nobiz_zip50")
 
 # chechk result
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_nb_nobiz", "prob_nb_nobiz_zip50"
   ),
@@ -532,7 +486,7 @@ eval_nb <- summary(result)
 #   for (j in 1:6) {
 #     decay = j/2
 #     result <- nn(
-#       dataset = "training",
+#       dataset = training,
 #       rvar = "res1",
 #       evar = c(
 #         "zip_bins","sex","bizflag", "numords", "dollars", "last", "sincepurch",
@@ -593,7 +547,7 @@ r_data[['test']]$prob_nn_newzip_mean <- nn_result_newzip$prob_nn_newzip_mean
 ```{r}
 # Evaluation
 result <- evalbin(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_int_bt_lb",
     "prob_nb_nobiz_zip50","prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
@@ -610,7 +564,7 @@ plot(result, plots = c("lift", "gains", "profit", "rome"), custom = TRUE) #%>%
 
 # Confusion matrix for different models
 result <- confusion(
-  dataset = "test",
+  dataset = test,
   pred = c(
     "prob_rfm", "prob_logit_nbf_in","prob_logit_nbf_in_lb","prob_logit_nbf_in_ub","prob_logit_nbf_int_bt_lb",
     "prob_nb_nobiz_zip50", "prob_nn_lb","prob_nn_newzip_lb","prob_nn_newzip_mean"
@@ -654,7 +608,7 @@ visualize(
 ##### 11. Profit Calculation
 ````{r}
 ## Creating mailto columns
-r_data[["test"]] <- r_data[["test"]] %>%
+r_data[[test]] <- r_data[[test]] %>%
                     mutate(mailto_logit = factor(
                       ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate), T, F),
                       levels = c(T, F))
@@ -667,15 +621,15 @@ table(r_data$test$res1, r_data$test$mailto_logit)
 final_profit <- 746 * 60 - (746 + 6171) * 1.41
 
 # generate mailto_wave 2 column
-r_data[["test"]] <- r_data[["test"]] %>%
+r_data[[test]] <- r_data[[test]] %>%
                     mutate(mailto_wave2 = factor(
                         ifelse( ( (prob_logit_nbf_in / 2) > BE_resp_rate) & res1 == "No", T, F),
                         levels = c(T, F))
 )
 
-saveRDS(r_data[["test"]]%>% select(id,mailto_wave2),"Lei_Qingqing_Xiaochen_Nehal_Group4.rds")
+saveRDS(r_data[[test]]%>% select(id,mailto_wave2),"Lei_Qingqing_Xiaochen_Nehal_Group4.rds")
 
 # scale profit to 801,821 businesses with 38,487 already responded
 profit_scaled <-
-  (final_profit / (nrow(r_data[["test"]]) - sum(r_data[["test"]][["res1"]] == "Yes")) )*(801821 - 38487)
+  (final_profit / (nrow(r_data[[test]]) - sum(r_data[[test]][["res1"]] == "Yes")) )*(801821 - 38487)
 ```
