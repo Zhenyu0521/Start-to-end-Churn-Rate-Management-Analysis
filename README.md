@@ -48,3 +48,4 @@ All the model's performance on train / validation set are compared to choose the
 ![model result_2](pics/model_comparison_2.png)
 
 ![model result](pics/model_comparison.png)
+sdfsd
